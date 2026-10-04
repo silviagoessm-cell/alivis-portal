@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Álivis — Admin</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/brand.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand-row" style="margin-bottom:0">
+      <div class="avatar">AL</div>
+      <div>
+        <h1>Álivis — Admin</h1>
+        <div class="sub">Painel da agência</div>
+      </div>
+    </div>
+    <button class="btn ghost" id="logoutBtn">Sair</button>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:10px">Clientes</h3>
+    <table id="clientsTable">
+      <thead><tr><th>Marca</th><th>Usuário</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:10px">Novo cliente</h3>
+    <form id="newClientForm">
+      <div class="field"><label>Nome da marca/cliente</label><input id="ncBrand" required></div>
+      <div class="field"><label>Usuário (login)</label><input id="ncUser" required></div>
+      <div class="field"><label>Senha</label><input id="ncPass" type="text" required></div>
+      <button class="btn" type="submit">Criar cliente</button>
+      <p class="error" id="ncErr" style="display:none"></p>
+    </form>
+  </div>
+
+  <div class="card" id="clientDetailCard" style="display:none">
+    <h3 id="clientDetailTitle" style="margin-bottom:10px"></h3>
+    <div id="clientHistory"></div>
+
+    <h3 style="margin:20px 0 10px">Nova rodada</h3>
+    <form id="newRoundForm">
+      <div class="field"><label>Nome da rodada (ex: "Rodada — Outubro")</label><input id="roundLabel" required></div>
+      <div id="postRows"></div>
+      <button type="button" class="btn secondary" id="addPostRowBtn">+ Adicionar post</button>
+      <div style="margin-top:14px">
+        <button class="btn" type="submit">Criar rodada e enviar</button>
+      </div>
+      <p class="error" id="roundErr" style="display:none"></p>
+    </form>
+  </div>
+</div>
+
+<script>
+  let CLIENTS = [];
+  let SELECTED_CLIENT = null;
+
+  async function requireAdmin() {
+    const res = await fetch("/api/me");
+    const data = await res.json();
+    if (data.role !== "admin") window.location.href = "/";
+  }
+
+  function postRowTemplate(n) {
+    const row = document.createElement("div");
+    row.className = "post-form-row";
+    row.innerHTML = `
+      <div class="field"><label>Formato</label>
+        <select class="pf-formato">
+          <option value="reels">Reels 🎞️</option>
+          <option value="carrossel">Carrossel 🖼️</option>
+          <option value="static">Post estático 🖼️</option>
+          <option value="stories">Stories 📸</option>
+        </select>
+      </div>
+      <div class="field"><label>Rede(s) — separadas por vírgula</label><input class="pf-rede" value="Instagram"></div>
+      <div class="field"><label>Data programada</label><input class="pf-data" placeholder="27 ago"></div>
+      <div class="field"><label>Hook / texto principal</label><textarea class="pf-hook"></textarea></div>
+      <button type="button" class="btn ghost removeRow">Remover post</button>
+    `;
+    row.querySelector(".removeRow").addEventListener("click", () => row.remove());
+    return row;
+  }
+
+  document.getElementById("addPostRowBtn").addEventListener("click", () => {
+    document.getElementById("postRows").appendChild(postRowTemplate());
+  });
+
+  async function loadClients() {
+    const res = await fetch("/api/admin/clients");
+    const data = await res.json();
+    CLIENTS = data.clients || [];
+    const tbody = document.querySelector("#clientsTable tbody");
+    tbody.innerHTML = "";
+    CLIENTS.forEach(c => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${c.brand_name}</td><td>${c.username}</td><td><button class="btn secondary" data-id="${c.id}">Ver</button></td>`;
+      tr.querySelector("button").addEventListener("click", () => selectClient(c));
+      tbody.appendChild(tr);
+    });
+  }
+
+  async function selectClient(c) {
+    SELECTED_CLIENT = c;
+    document.getElementById("clientDetailCard").style.display = "block";
+    document.getElementById("clientDetailTitle").textContent = c.brand_name + " (@" + c.username + ")";
+    document.getElementById("postRows").innerHTML = "";
+    document.getElementById("postRows").appendChild(postRowTemplate());
+    await loadHistory();
+  }
+
+  function statusLabel(s) {
+    return s === "aprovado" ? "✅ Aprovado" : s === "ajuste" ? "✎ Ajuste pedido" : "⏳ Pendente";
+  }
+
+  async function loadHistory() {
+    const res = await fetch("/api/admin/rounds?clientId=" + SELECTED_CLIENT.id);
+    const data = await res.json();
+    const el = document.getElementById("clientHistory");
+    el.innerHTML = "";
+    (data.rounds || []).forEach(round => {
+      const block = document.createElement("div");
+      block.className = "round-block";
+      block.innerHTML = `<p class="round-title">${round.label}</p>`;
+      const table = document.createElement("table");
+      table.innerHTML = `<thead><tr><th>Post</th><th>Status</th><th>Feedback</th><th></th></tr></thead>`;
+      const tbody = document.createElement("tbody");
+      round.posts.forEach(p => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${p.icon} ${p.hook.slice(0, 60)}</td>
+          <td>${statusLabel(p.status)}</td>
+          <td>${p.feedback || "—"}</td>
+          <td>${p.status === "ajuste" ? '<button class="btn ghost markDone">Marcar ajuste feito</button>' : ""}</td>
+        `;
+        const btn = tr.querySelector(".markDone");
+        if (btn) btn.addEventListener("click", async () => {
+          await fetch("/api/admin/rounds", {
+            method: "PATCH",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ postId: p.id, status: "aprovado" }),
+          });
+          await loadHistory();
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      block.appendChild(table);
+      el.appendChild(block);
+    });
+  }
+
+  document.getElementById("newClientForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const brandName = document.getElementById("ncBrand").value.trim();
+    const username = document.getElementById("ncUser").value.trim();
+    const password = document.getElementById("ncPass").value;
+    const err = document.getElementById("ncErr");
+    err.style.display = "none";
+    const res = await fetch("/api/admin/clients", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ brandName, username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) { err.textContent = data.error; err.style.display = "block"; return; }
+    document.getElementById("newClientForm").reset();
+    await loadClients();
+  });
+
+  document.getElementById("newRoundForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const label = document.getElementById("roundLabel").value.trim();
+    const rows = Array.from(document.querySelectorAll("#postRows .post-form-row"));
+    const formatLabels = { reels: ["Reels", "🎞️"], carrossel: ["Carrossel", "🖼️"], static: ["Post estático", "🖼️"], stories: ["Stories", "📸"] };
+    const posts = rows.map(row => {
+      const formato = row.querySelector(".pf-formato").value;
+      const [label, icon] = formatLabels[formato];
+      return {
+        formato, label, icon,
+        rede: row.querySelector(".pf-rede").value.split(",").map(s => s.trim()).filter(Boolean),
+        data: row.querySelector(".pf-data").value.trim(),
+        hook: row.querySelector(".pf-hook").value.trim(),
+      };
+    }).filter(p => p.hook);
+
+    const err = document.getElementById("roundErr");
+    err.style.display = "none";
+    const res = await fetch("/api/admin/rounds", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ clientId: SELECTED_CLIENT.id, label, posts }),
+    });
+    const data = await res.json();
+    if (!res.ok) { err.textContent = data.error; err.style.display = "block"; return; }
+    document.getElementById("newRoundForm").reset();
+    document.getElementById("postRows").innerHTML = "";
+    document.getElementById("postRows").appendChild(postRowTemplate());
+    await loadHistory();
+  });
+
+  document.getElementById("logoutBtn").addEventListener("click", async () => {
+    await fetch("/api/logout", { method: "POST" });
+    window.location.href = "/";
+  });
+
+  requireAdmin();
+  loadClients();
+</script>
+</body>
+</html>

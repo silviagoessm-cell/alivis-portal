@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Álivis — Acesso</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/brand.css">
+</head>
+<body>
+<div class="wrap narrow" style="padding-top:60px">
+  <div class="brand-row">
+    <div class="avatar">AL</div>
+    <div>
+      <h1>Álivis</h1>
+      <div class="sub">Portal de aprovação de conteúdo</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <form id="loginForm">
+      <div class="field">
+        <label for="username">Usuário</label>
+        <input id="username" name="username" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="password">Senha</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button class="btn" type="submit" style="width:100%">Entrar</button>
+      <p class="error" id="err" style="display:none"></p>
+    </form>
+  </div>
+  <p class="hint">Acesso fornecido pela sua agência. Problemas pra entrar? Fale com quem te enviou esse link.</p>
+</div>
+
+<script>
+  const form = document.getElementById("loginForm");
+  const err = document.getElementById("err");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    err.style.display = "none";
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value;
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        err.textContent = data.error || "Não foi possível entrar.";
+        err.style.display = "block";
+        return;
+      }
+      window.location.href = data.role === "admin" ? "/admin.html" : "/cliente.html";
+    } catch (e) {
+      err.textContent = "Erro de conexão. Tente novamente.";
+      err.style.display = "block";
+    }
+  });
+</script>
+</body>
+</html>
