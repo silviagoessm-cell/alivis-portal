@@ -34,6 +34,7 @@
       <div class="field"><label>Nome da marca/cliente</label><input id="ncBrand" required></div>
       <div class="field"><label>Usuário (login)</label><input id="ncUser" required></div>
       <div class="field"><label>Senha</label><input id="ncPass" type="text" required></div>
+      <div class="field"><label>ID do banco de posts no Notion (opcional)</label><input id="ncNotion" placeholder="cole o link ou ID do banco de posts deste cliente"></div>
       <button class="btn" type="submit">Criar cliente</button>
       <p class="error" id="ncErr" style="display:none"></p>
     </form>
@@ -43,11 +44,23 @@
     <h3 id="clientDetailTitle" style="margin-bottom:10px"></h3>
     <div id="clientHistory"></div>
 
+    <h3 style="margin:20px 0 10px">Banco de posts do Notion</h3>
+    <div class="field">
+      <label>ID do banco de posts deste cliente</label>
+      <input id="notionDbInput" placeholder="cole o link ou ID do banco de posts">
+    </div>
+    <button type="button" class="btn secondary" id="saveNotionDbBtn">Salvar vínculo com o Notion</button>
+    <p class="hint" id="notionDbHint" style="margin-top:8px"></p>
+
     <h3 style="margin:20px 0 10px">Nova rodada</h3>
     <form id="newRoundForm">
       <div class="field"><label>Nome da rodada (ex: "Rodada — Outubro")</label><input id="roundLabel" required></div>
       <div id="postRows"></div>
-      <button type="button" class="btn secondary" id="addPostRowBtn">+ Adicionar post</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn secondary" id="addPostRowBtn">+ Adicionar post</button>
+        <button type="button" class="btn secondary" id="importNotionBtn">📥 Importar do Notion</button>
+      </div>
+      <p class="error" id="importErr" style="display:none"></p>
       <div style="margin-top:14px">
         <button class="btn" type="submit">Criar rodada e enviar</button>
       </div>
@@ -66,7 +79,7 @@
     if (data.role !== "admin") window.location.href = "/";
   }
 
-  function postRowTemplate(n) {
+  function postRowTemplate(initial) {
     const row = document.createElement("div");
     row.className = "post-form-row";
     row.innerHTML = `
@@ -84,6 +97,12 @@
       <button type="button" class="btn ghost removeRow">Remover post</button>
     `;
     row.querySelector(".removeRow").addEventListener("click", () => row.remove());
+    if (initial) {
+      if (initial.formato) row.querySelector(".pf-formato").value = initial.formato;
+      if (initial.rede) row.querySelector(".pf-rede").value = (initial.rede || []).join(", ");
+      if (initial.data) row.querySelector(".pf-data").value = initial.data;
+      if (initial.hook) row.querySelector(".pf-hook").value = initial.hook;
+    }
     return row;
   }
 
@@ -109,10 +128,57 @@
     SELECTED_CLIENT = c;
     document.getElementById("clientDetailCard").style.display = "block";
     document.getElementById("clientDetailTitle").textContent = c.brand_name + " (@" + c.username + ")";
+    document.getElementById("notionDbInput").value = c.notion_database_id || "";
+    document.getElementById("notionDbHint").textContent = c.notion_database_id
+      ? "Vinculado ✓"
+      : "Sem banco de posts vinculado ainda.";
     document.getElementById("postRows").innerHTML = "";
     document.getElementById("postRows").appendChild(postRowTemplate());
     await loadHistory();
   }
+
+  document.getElementById("saveNotionDbBtn").addEventListener("click", async () => {
+    if (!SELECTED_CLIENT) return;
+    const notionDatabaseId = document.getElementById("notionDbInput").value.trim();
+    const hint = document.getElementById("notionDbHint");
+    hint.textContent = "Salvando...";
+    const res = await fetch("/api/admin/clients", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ clientId: SELECTED_CLIENT.id, notionDatabaseId }),
+    });
+    hint.textContent = res.ok ? "Vinculado ✓" : "Não foi possível salvar.";
+    await loadClients();
+  });
+
+  document.getElementById("importNotionBtn").addEventListener("click", async () => {
+    if (!SELECTED_CLIENT) return;
+    const err = document.getElementById("importErr");
+    err.style.display = "none";
+    const btn = document.getElementById("importNotionBtn");
+    btn.disabled = true;
+    btn.textContent = "Importando...";
+    try {
+      const res = await fetch("/api/admin/notion-import?clientId=" + SELECTED_CLIENT.id);
+      const data = await res.json();
+      if (!res.ok) {
+        err.textContent = data.error || "Não foi possível importar do Notion.";
+        err.style.display = "block";
+        return;
+      }
+      if (!data.posts || data.posts.length === 0) {
+        err.textContent = "Nenhum post aguardando aprovação encontrado nesse banco do Notion.";
+        err.style.display = "block";
+        return;
+      }
+      const postRows = document.getElementById("postRows");
+      postRows.innerHTML = "";
+      data.posts.forEach((p) => postRows.appendChild(postRowTemplate(p)));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "📥 Importar do Notion";
+    }
+  });
 
   function statusLabel(s) {
     return s === "aprovado" ? "✅ Aprovado" : s === "ajuste" ? "✎ Ajuste pedido" : "⏳ Pendente";
@@ -160,12 +226,13 @@
     const brandName = document.getElementById("ncBrand").value.trim();
     const username = document.getElementById("ncUser").value.trim();
     const password = document.getElementById("ncPass").value;
+    const notionDatabaseId = document.getElementById("ncNotion").value.trim();
     const err = document.getElementById("ncErr");
     err.style.display = "none";
     const res = await fetch("/api/admin/clients", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ brandName, username, password }),
+      body: JSON.stringify({ brandName, username, password, notionDatabaseId }),
     });
     const data = await res.json();
     if (!res.ok) { err.textContent = data.error; err.style.display = "block"; return; }
