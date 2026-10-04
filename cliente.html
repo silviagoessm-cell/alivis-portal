@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Álivis — Aprovação</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/brand.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand-row" style="margin-bottom:0">
+      <div class="avatar">AL</div>
+      <div>
+        <h1 id="brandTitle">Álivis</h1>
+        <div class="sub">Portal de aprovação de conteúdo</div>
+      </div>
+    </div>
+    <button class="btn ghost" id="logoutBtn">Sair</button>
+  </div>
+
+  <p class="hint">Toque em <b>Aprovar</b> se estiver tudo certo, ou em <b>Pedir ajuste</b> pra descrever o que precisa mudar.</p>
+  <div class="legend">
+    <span><i class="status-dot" style="position:static"></i>Aguardando sua análise</span>
+    <span><i class="status-dot aprovado" style="position:static"></i>Aprovado</span>
+    <span><i class="status-dot ajuste" style="position:static"></i>Pediu ajuste</span>
+  </div>
+
+  <div id="rounds"></div>
+</div>
+
+<template id="tplPost">
+  <div class="phone" data-post>
+    <div class="head">
+      <div class="avatar"></div>
+      <div>
+        <div class="handle"></div>
+        <div class="when"></div>
+      </div>
+    </div>
+    <div class="stage">
+      <div class="slide"><p class="txt"></p></div>
+    </div>
+    <div class="body">
+      <div class="tags"></div>
+      <p class="caption"></p>
+      <div class="fb-row">
+        <button class="fb-btn ok" data-action="aprovado">✓ Aprovar</button>
+        <button class="fb-btn adjust" data-action="ajuste">✎ Pedir ajuste</button>
+      </div>
+      <textarea class="fb-textarea field" style="display:none;margin-top:8px" placeholder="Descreva o ajuste..."></textarea>
+      <button class="btn" data-action="send-ajuste" style="display:none;margin-top:8px;width:100%">Enviar ajuste</button>
+      <p class="fb-note" style="display:none"></p>
+    </div>
+  </div>
+</template>
+
+<script>
+  let STATE = null;
+
+  async function loadData() {
+    const res = await fetch("/api/cliente/dados");
+    if (res.status === 401) { window.location.href = "/"; return; }
+    STATE = await res.json();
+    document.getElementById("brandTitle").textContent = STATE.brandName || "Álivis";
+    render();
+  }
+
+  function statusLabel(s) {
+    return s === "aprovado" ? "Aprovado" : s === "ajuste" ? "Ajuste pedido" : "Pendente";
+  }
+
+  function render() {
+    const container = document.getElementById("rounds");
+    container.innerHTML = "";
+    STATE.rounds.forEach((round, idx) => {
+      const block = document.createElement("div");
+      block.className = "round-block";
+      const title = document.createElement("p");
+      title.className = "round-title";
+      title.textContent = (idx === 0 ? "Rodada atual — " : "Rodada anterior — ") + round.label;
+      block.appendChild(title);
+
+      if (idx === 0) {
+        const grid = document.createElement("div");
+        grid.className = "grid";
+        round.posts.forEach(p => {
+          const tile = document.createElement("button");
+          tile.className = "tile";
+          tile.innerHTML = `<span class="status-dot ${p.status}"></span><span class="fmt">${p.icon}</span><span class="hook">${p.hook}</span>`;
+          tile.addEventListener("click", () => {
+            document.getElementById("post-" + p.id)?.scrollIntoView({ behavior: "smooth" });
+          });
+          grid.appendChild(tile);
+        });
+        block.appendChild(grid);
+      }
+
+      round.posts.forEach(p => {
+        block.appendChild(renderPost(p, idx === 0));
+      });
+
+      container.appendChild(block);
+    });
+  }
+
+  function renderPost(p, interactive) {
+    const tpl = document.getElementById("tplPost").content.cloneNode(true);
+    const root = tpl.querySelector("[data-post]");
+    root.id = "post-" + p.id;
+    root.querySelector(".avatar").textContent = "AL";
+    root.querySelector(".handle").textContent = "Álivis";
+    root.querySelector(".when").textContent = (p.data_programada || "") + " · " + statusLabel(p.status);
+    const stage = root.querySelector(".stage");
+    stage.classList.add("fmt-" + p.formato);
+    root.querySelector(".txt").textContent = p.hook;
+    const tags = root.querySelector(".tags");
+    tags.innerHTML = `<span class="tag">${p.icon} ${p.label}</span>` + (p.rede || []).map(r => `<span class="tag">${r}</span>`).join("");
+    root.querySelector(".caption").textContent = p.hook;
+
+    const okBtn = root.querySelector('[data-action="aprovado"]');
+    const adjustBtn = root.querySelector('[data-action="ajuste"]');
+    const textarea = root.querySelector(".fb-textarea");
+    const sendBtn = root.querySelector('[data-action="send-ajuste"]');
+    const note = root.querySelector(".fb-note");
+
+    if (!interactive) {
+      okBtn.style.display = "none";
+      adjustBtn.style.display = "none";
+      if (p.feedback) {
+        note.style.display = "block";
+        note.textContent = "Ajuste pedido: " + p.feedback;
+      }
+      return root;
+    }
+
+    okBtn.addEventListener("click", async () => {
+      await sendFeedback(p.id, "aprovado", null);
+      note.style.display = "block";
+      note.textContent = "Aprovado ✅";
+      await loadData();
+    });
+
+    adjustBtn.addEventListener("click", () => {
+      textarea.style.display = "block";
+      sendBtn.style.display = "block";
+      textarea.focus();
+    });
+
+    sendBtn.addEventListener("click", async () => {
+      const text = textarea.value.trim();
+      if (!text) { textarea.focus(); return; }
+      await sendFeedback(p.id, "ajuste", text);
+      note.style.display = "block";
+      note.textContent = "Ajuste enviado.";
+      await loadData();
+    });
+
+    return root;
+  }
+
+  async function sendFeedback(postId, status, feedback) {
+    await fetch("/api/cliente/feedback", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ postId, status, feedback }),
+    });
+  }
+
+  document.getElementById("logoutBtn").addEventListener("click", async () => {
+    await fetch("/api/logout", { method: "POST" });
+    window.location.href = "/";
+  });
+
+  loadData();
+</script>
+</body>
+</html>
