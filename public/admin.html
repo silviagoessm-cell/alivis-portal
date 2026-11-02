@@ -6,6 +6,20 @@
 <title>Álivis — Admin</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/brand.css">
+<style>
+  .imgs-box{border:1px dashed var(--line);border-radius:10px;padding:10px;margin-bottom:12px;background:#fff}
+  .imgs-box .imgs-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .imgs-list{display:flex;flex-wrap:wrap;gap:8px}
+  .img-item{position:relative;width:96px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface-2);cursor:grab}
+  .img-item.dragging{opacity:.4}
+  .img-item.over{outline:2px solid var(--accent)}
+  .img-item img{display:block;width:100%;aspect-ratio:1;object-fit:cover}
+  .img-item .num{position:absolute;top:4px;left:4px;background:var(--accent);color:#fff;border-radius:20px;font-size:11px;font-weight:700;padding:1px 7px}
+  .img-item .bar{display:flex;justify-content:space-between;padding:3px}
+  .img-item .bar button{border:none;background:transparent;cursor:pointer;font-size:14px;padding:2px 5px;color:var(--text-dim)}
+  .img-item.uploading img{opacity:.35}
+  .img-item .err{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(251,232,225,.9);color:var(--warn);font-size:11px;text-align:center;padding:4px}
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -70,6 +84,7 @@
 </div>
 
 <script>
+  function escapeHtml(t) { return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
   let CLIENTS = [];
   let SELECTED_CLIENT = null;
 
@@ -77,6 +92,116 @@
     const res = await fetch("/api/me");
     const data = await res.json();
     if (data.role !== "admin") window.location.href = "/";
+  }
+
+
+  // ---------- imagens: seleção em lote, envio, ordem ----------
+  function naturalSort(a, b) {
+    return a.name.localeCompare(b.name, "pt-BR", { numeric: true, sensitivity: "base" });
+  }
+
+  function resizeToJpeg(file, maxSide = 1350) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(b => b ? resolve({ blob: b, preview: canvas.toDataURL("image/jpeg", 0.5) }) : reject(new Error("falha")), "image/jpeg", 0.88);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Não consegui ler " + file.name)); };
+      img.src = url;
+    });
+  }
+
+  async function uploadBlob(blob) {
+    const res = await fetch("/api/admin/upload", { method: "POST", headers: { "content-type": "image/jpeg" }, body: blob });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Falha no envio.");
+    return data.url;
+  }
+
+  function setupImages(row) {
+    const list = row.querySelector(".imgs-list");
+    const input = row.querySelector(".imgInput");
+    row._imgs = []; // { id, url, preview, state }
+    let dragId = null;
+
+    function draw() {
+      list.innerHTML = "";
+      row._imgs.forEach((it, i) => {
+        const el = document.createElement("div");
+        el.className = "img-item" + (it.state === "up" ? " uploading" : "");
+        el.draggable = true;
+        el.dataset.id = it.id;
+        el.innerHTML = `<img alt=""><span class="num">${i + 1}</span>
+          <div class="bar"><button type="button" data-a="l" title="Mover para antes">◀</button><button type="button" data-a="x" title="Remover">✕</button><button type="button" data-a="r" title="Mover para depois">▶</button></div>`;
+        el.querySelector("img").src = it.preview || it.url;
+        if (it.state === "err") {
+          const e = document.createElement("div"); e.className = "err"; e.textContent = it.msg || "Erro";
+          el.appendChild(e);
+        }
+        el.addEventListener("click", ev => {
+          const a = ev.target.dataset && ev.target.dataset.a;
+          if (!a) return;
+          const idx = row._imgs.findIndex(x => x.id === it.id);
+          if (a === "x") row._imgs.splice(idx, 1);
+          if (a === "l" && idx > 0) [row._imgs[idx - 1], row._imgs[idx]] = [row._imgs[idx], row._imgs[idx - 1]];
+          if (a === "r" && idx < row._imgs.length - 1) [row._imgs[idx + 1], row._imgs[idx]] = [row._imgs[idx], row._imgs[idx + 1]];
+          draw();
+        });
+        el.addEventListener("dragstart", () => { dragId = it.id; el.classList.add("dragging"); });
+        el.addEventListener("dragend", () => { dragId = null; draw(); });
+        el.addEventListener("dragover", ev => { ev.preventDefault(); el.classList.add("over"); });
+        el.addEventListener("dragleave", () => el.classList.remove("over"));
+        el.addEventListener("drop", ev => {
+          ev.preventDefault();
+          if (!dragId || dragId === it.id) return;
+          const from = row._imgs.findIndex(x => x.id === dragId);
+          const to = row._imgs.findIndex(x => x.id === it.id);
+          const [moved] = row._imgs.splice(from, 1);
+          row._imgs.splice(to, 0, moved);
+          draw();
+        });
+        list.appendChild(el);
+      });
+    }
+
+    row.querySelector(".pickImgs").addEventListener("click", () => input.click());
+    input.addEventListener("change", async () => {
+      const files = Array.from(input.files).sort(naturalSort);
+      input.value = "";
+      const items = files.map(f => ({ id: crypto.randomUUID(), file: f, state: "up", url: null, preview: null }));
+      row._imgs.push(...items);
+      draw();
+      // reduz e envia em fila (3 por vez), a ordem final é a da lista
+      let next = 0;
+      async function worker() {
+        while (next < items.length) {
+          const it = items[next++];
+          try {
+            const { blob, preview } = await resizeToJpeg(it.file);
+            it.preview = preview;
+            it.url = await uploadBlob(blob);
+            it.state = "ok";
+          } catch (e) { it.state = "err"; it.msg = e.message; }
+          delete it.file;
+          draw();
+        }
+      }
+      await Promise.all([worker(), worker(), worker()]);
+    });
+    row._draw = draw;
+  }
+
+  function rowImageUrls(row) {
+    return (row._imgs || []).filter(i => i.state === "ok" && i.url).map(i => i.url);
   }
 
   function postRowTemplate(initial) {
@@ -94,8 +219,17 @@
       <div class="field"><label>Rede(s) — separadas por vírgula</label><input class="pf-rede" value="Instagram"></div>
       <div class="field"><label>Data programada</label><input class="pf-data" placeholder="27 ago"></div>
       <div class="field"><label>Hook / texto principal</label><textarea class="pf-hook"></textarea></div>
+      <div class="imgs-box">
+        <div class="imgs-head">
+          <button type="button" class="btn secondary pickImgs">🖼️ Escolher imagens (várias de uma vez)</button>
+          <input type="file" class="imgInput" accept="image/*" multiple style="display:none">
+          <span class="hint">Selecione todas as imagens do post. Elas entram em ordem de nome (1, 2, 3…). Arraste ou use ◀ ▶ para reordenar.</span>
+        </div>
+        <div class="imgs-list"></div>
+      </div>
       <button type="button" class="btn ghost removeRow">Remover post</button>
     `;
+    setupImages(row);
     row.querySelector(".removeRow").addEventListener("click", () => row.remove());
     if (initial) {
       if (initial.formato) row.querySelector(".pf-formato").value = initial.formato;
@@ -199,9 +333,9 @@
       round.posts.forEach(p => {
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td>${p.icon} ${p.hook.slice(0, 60)}</td>
+          <td>${p.icon} ${escapeHtml(p.hook.slice(0, 60))}${Array.isArray(p.slides) && p.slides.some(x => x && x.img) ? ' 🖼️×' + p.slides.filter(x => x && x.img).length : ''}</td>
           <td>${statusLabel(p.status)}</td>
-          <td>${p.feedback || "—"}</td>
+          <td>${escapeHtml(p.feedback || "—")}</td>
           <td>${p.status === "ajuste" ? '<button class="btn ghost markDone">Marcar ajuste feito</button>' : ""}</td>
         `;
         const btn = tr.querySelector(".markDone");
@@ -248,8 +382,10 @@
     const posts = rows.map(row => {
       const formato = row.querySelector(".pf-formato").value;
       const [label, icon] = formatLabels[formato];
+      const urls = rowImageUrls(row);
+      const slides = urls.length ? (formato === "carrossel" ? urls : urls.slice(0, 1)).map(u => ({ img: u })) : null;
       return {
-        formato, label, icon,
+        formato, label, icon, slides,
         rede: row.querySelector(".pf-rede").value.split(",").map(s => s.trim()).filter(Boolean),
         data: row.querySelector(".pf-data").value.trim(),
         hook: row.querySelector(".pf-hook").value.trim(),
@@ -258,6 +394,14 @@
 
     const err = document.getElementById("roundErr");
     err.style.display = "none";
+    if (rows.some(r => (r._imgs || []).some(i => i.state === "up"))) {
+      err.textContent = "Aguarde: ainda estou enviando as imagens.";
+      err.style.display = "block"; return;
+    }
+    if (rows.some(r => (r._imgs || []).some(i => i.state === "err"))) {
+      err.textContent = "Alguma imagem deu erro. Remova (✕) e escolha de novo.";
+      err.style.display = "block"; return;
+    }
     const res = await fetch("/api/admin/rounds", {
       method: "POST",
       headers: { "content-type": "application/json" },

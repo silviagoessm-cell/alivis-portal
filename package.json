@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@netlify/database": "latest",
-    "@netlify/functions": "latest"
+    "@netlify/functions": "latest",
+    "@netlify/blobs": "latest"
   }
 }

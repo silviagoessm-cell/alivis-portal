@@ -11,10 +11,10 @@ export default async (req: Request, _context: Context) => {
 
   const body = await req.json().catch(() => null);
   const postId = body?.postId;
-  const status = body?.status; // "aprovado" | "ajuste"
+  const status = body?.status; // "aprovado" | "ajuste" | "pendente"
   const feedback = body?.feedback || null;
-  if (!postId || !["aprovado", "ajuste"].includes(status)) {
-    return json({ error: "postId e status (aprovado|ajuste) são obrigatórios." }, { status: 400 });
+  if (!postId || !["aprovado", "ajuste", "pendente"].includes(status)) {
+    return json({ error: "postId e status (aprovado|ajuste|pendente) são obrigatórios." }, { status: 400 });
   }
 
   const database = db();

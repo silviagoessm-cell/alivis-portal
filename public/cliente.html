@@ -6,6 +6,39 @@
 <title>Álivis — Aprovação</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/brand.css">
+<style>
+  .progress{margin:14px 0 6px}
+  .progress .txt{font-size:13px;color:var(--text-dim);margin-bottom:6px}
+  .progress .txt b{color:var(--text)}
+  .progress .track{height:6px;border-radius:6px;background:var(--surface-3);overflow:hidden;display:flex}
+  .progress .seg-ok{background:var(--good)}
+  .progress .seg-aj{background:var(--warn)}
+  .tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .tile .status-dot{z-index:2}
+  .tile .fmt{z-index:2;text-shadow:0 0 4px #fff}
+  .slide.img{padding:0;background:#000}
+  .slide.img img{width:100%;height:100%;object-fit:contain;background:#faf6ee}
+  .slide[hidden]{display:none}
+  .car-nav{position:absolute;top:50%;transform:translateY(-50%);width:34px;height:34px;border-radius:50%;border:none;background:rgba(28,22,17,.55);color:#fff;font-size:18px;cursor:pointer;z-index:3}
+  .car-nav.prev{left:8px}.car-nav.next{right:8px}
+  .car-count{position:absolute;top:10px;right:10px;background:rgba(28,22,17,.6);color:#fff;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;z-index:3}
+  .car-dots{position:absolute;bottom:10px;left:0;right:0;display:flex;justify-content:center;gap:5px;z-index:3}
+  .car-dots span{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.65);box-shadow:0 0 2px rgba(0,0,0,.4)}
+  .car-dots span.on{background:var(--accent);width:16px;border-radius:4px}
+  .thumbs{display:flex;gap:6px;overflow-x:auto;padding:8px 14px 0}
+  .thumbs button{flex:0 0 auto;width:46px;height:46px;border-radius:8px;border:2px solid transparent;padding:0;overflow:hidden;cursor:pointer;background:var(--surface-2)}
+  .thumbs button.on{border-color:var(--accent)}
+  .thumbs img{width:100%;height:100%;object-fit:cover;display:block}
+  .post-label{font-size:11.5px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;margin:0 0 6px}
+  .status-pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:20px;background:var(--surface-2);border:1px solid var(--line);color:var(--text-dim)}
+  .status-pill.aprovado{background:var(--good-bg);color:var(--good);border-color:var(--good)}
+  .status-pill.ajuste{background:var(--warn-bg);color:var(--warn);border-color:#e8bfae}
+  .more{border:none;background:none;color:var(--accent);font-weight:600;font-size:12.5px;cursor:pointer;padding:0;margin-left:4px}
+  .caption.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .fb-sent{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--warn-bg);color:var(--warn);font-size:13px}
+  .undo{border:none;background:none;color:var(--text-dim);text-decoration:underline;font-size:12px;cursor:pointer;padding:0;margin-top:8px}
+  .fb-btn:focus-visible,.car-nav:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -27,11 +60,16 @@
     <span><i class="status-dot ajuste" style="position:static"></i>Pediu ajuste</span>
   </div>
 
+  <div class="progress" id="progress" style="display:none">
+    <div class="txt" id="progressTxt"></div>
+    <div class="track"><div class="seg-ok" id="segOk"></div><div class="seg-aj" id="segAj"></div></div>
+  </div>
   <div id="rounds"></div>
 </div>
 
 <template id="tplPost">
   <div class="phone" data-post>
+    <div style="padding:12px 14px 0"><p class="post-label"></p></div>
     <div class="head">
       <div class="avatar"></div>
       <div>
@@ -42,6 +80,7 @@
     <div class="stage">
       <div class="slide"><p class="txt"></p></div>
     </div>
+    <div class="thumbs" style="display:none"></div>
     <div class="body">
       <div class="tags"></div>
       <p class="caption"></p>
@@ -65,6 +104,7 @@
     STATE = await res.json();
     document.getElementById("brandTitle").textContent = STATE.brandName || "Álivis";
     render();
+    updateProgress();
   }
 
   function statusLabel(s) {
@@ -88,7 +128,10 @@
         round.posts.forEach(p => {
           const tile = document.createElement("button");
           tile.className = "tile";
-          tile.innerHTML = `<span class="status-dot ${p.status}"></span><span class="fmt">${p.icon}</span><span class="hook">${p.hook}</span>`;
+          const cover = imagesOf(p)[0];
+          tile.innerHTML = `${cover ? `<img alt="" loading="lazy">` : ""}<span class="status-dot ${p.status}"></span><span class="fmt">${p.icon}</span>${cover ? "" : `<span class="hook"></span>`}`;
+          if (cover) tile.querySelector("img").src = cover; else tile.querySelector(".hook").textContent = p.hook;
+          tile.setAttribute("aria-label", "Abrir post: " + p.hook.slice(0, 60));
           tile.addEventListener("click", () => {
             document.getElementById("post-" + p.id)?.scrollIntoView({ behavior: "smooth" });
           });
@@ -97,27 +140,115 @@
         block.appendChild(grid);
       }
 
-      round.posts.forEach(p => {
-        block.appendChild(renderPost(p, idx === 0));
+      round.posts.forEach((p, i) => {
+        block.appendChild(renderPost(p, idx === 0, i + 1, round.posts.length));
       });
 
       container.appendChild(block);
     });
   }
 
-  function renderPost(p, interactive) {
+  function imagesOf(p) {
+    return Array.isArray(p.slides) ? p.slides.filter(x => x && x.img).map(x => x.img) : [];
+  }
+
+  function updateProgress() {
+    const cur = STATE.rounds[0];
+    const box = document.getElementById("progress");
+    if (!cur || !cur.posts.length) { box.style.display = "none"; return; }
+    const total = cur.posts.length;
+    const ok = cur.posts.filter(p => p.status === "aprovado").length;
+    const aj = cur.posts.filter(p => p.status === "ajuste").length;
+    const pend = total - ok - aj;
+    box.style.display = "block";
+    document.getElementById("progressTxt").innerHTML = `<b>${ok} de ${total}</b> aprovados` + (aj ? ` · ${aj} com ajuste pedido` : "") + (pend ? ` · ${pend} aguardando você` : " · tudo respondido ✅");
+    document.getElementById("segOk").style.width = (ok / total * 100) + "%";
+    document.getElementById("segAj").style.width = (aj / total * 100) + "%";
+  }
+
+  function buildMedia(root, p) {
+    const stage = root.querySelector(".stage");
+    const imgs = imagesOf(p);
+    if (!imgs.length) return;
+    stage.innerHTML = "";
+    let idx = 0;
+    const slideEls = imgs.map((u, i) => {
+      const d = document.createElement("div");
+      d.className = "slide img";
+      const im = document.createElement("img");
+      im.alt = `Imagem ${i + 1} de ${imgs.length}`;
+      im.src = u;
+      d.appendChild(im);
+      d.hidden = i !== 0;
+      stage.appendChild(d);
+      return d;
+    });
+    if (imgs.length < 2) return;
+    const count = document.createElement("span"); count.className = "car-count"; stage.appendChild(count);
+    const prev = document.createElement("button"); prev.className = "car-nav prev"; prev.textContent = "‹"; prev.setAttribute("aria-label", "Imagem anterior");
+    const next = document.createElement("button"); next.className = "car-nav next"; next.textContent = "›"; next.setAttribute("aria-label", "Próxima imagem");
+    const dots = document.createElement("div"); dots.className = "car-dots";
+    imgs.forEach(() => dots.appendChild(document.createElement("span")));
+    stage.append(prev, next, dots);
+    const thumbs = root.querySelector(".thumbs");
+    thumbs.style.display = "flex";
+    const thumbBtns = imgs.map((u, i) => {
+      const b = document.createElement("button");
+      b.setAttribute("aria-label", "Ir para imagem " + (i + 1));
+      const im = document.createElement("img"); im.src = u; im.alt = ""; b.appendChild(im);
+      b.addEventListener("click", () => show(i));
+      thumbs.appendChild(b); return b;
+    });
+    function show(n) {
+      idx = (n + imgs.length) % imgs.length;
+      slideEls.forEach((s, i) => s.hidden = i !== idx);
+      dots.querySelectorAll("span").forEach((d, i) => d.classList.toggle("on", i === idx));
+      thumbBtns.forEach((b, i) => b.classList.toggle("on", i === idx));
+      count.textContent = `${idx + 1}/${imgs.length}`;
+    }
+    prev.addEventListener("click", () => show(idx - 1));
+    next.addEventListener("click", () => show(idx + 1));
+    let x0 = null;
+    stage.addEventListener("touchstart", e => { x0 = e.touches[0].clientX; }, { passive: true });
+    stage.addEventListener("touchend", e => {
+      if (x0 === null) return;
+      const dx = e.changedTouches[0].clientX - x0; x0 = null;
+      if (Math.abs(dx) > 40) show(idx + (dx < 0 ? 1 : -1));
+    });
+    show(0);
+  }
+
+  function renderPost(p, interactive, num, total) {
     const tpl = document.getElementById("tplPost").content.cloneNode(true);
     const root = tpl.querySelector("[data-post]");
     root.id = "post-" + p.id;
     root.querySelector(".avatar").textContent = "AL";
     root.querySelector(".handle").textContent = "Álivis";
-    root.querySelector(".when").textContent = (p.data_programada || "") + " · " + statusLabel(p.status);
+    root.querySelector(".post-label").textContent = `Post ${num} de ${total} · ${p.label}`;
+    root.querySelector(".when").textContent = (p.data_programada ? "Programado para " + p.data_programada : "Sem data definida");
+    const pill = document.createElement("span");
+    pill.className = "status-pill " + p.status;
+    pill.textContent = statusLabel(p.status);
+    root.querySelector(".head").appendChild(pill);
+    pill.style.marginLeft = "auto";
     const stage = root.querySelector(".stage");
     stage.classList.add("fmt-" + p.formato);
     root.querySelector(".txt").textContent = p.hook;
     const tags = root.querySelector(".tags");
     tags.innerHTML = `<span class="tag">${p.icon} ${p.label}</span>` + (p.rede || []).map(r => `<span class="tag">${r}</span>`).join("");
-    root.querySelector(".caption").textContent = p.hook;
+    buildMedia(root, p);
+    const cap = root.querySelector(".caption");
+    cap.textContent = p.hook;
+    if (p.hook.length > 140) {
+      cap.classList.add("clamp");
+      const more = document.createElement("button");
+      more.type = "button"; more.className = "more"; more.textContent = "ver legenda completa";
+      more.addEventListener("click", () => {
+        const open = cap.classList.toggle("clamp");
+        more.textContent = open ? "ver legenda completa" : "recolher";
+      });
+      cap.after(more);
+    }
 
     const okBtn = root.querySelector('[data-action="aprovado"]');
     const adjustBtn = root.querySelector('[data-action="ajuste"]');
@@ -133,6 +264,22 @@
         note.textContent = "Ajuste pedido: " + p.feedback;
       }
       return root;
+    }
+
+    if (p.status === "ajuste" && p.feedback) {
+      const sent = document.createElement("div");
+      sent.className = "fb-sent";
+      sent.textContent = "Seu pedido de ajuste: " + p.feedback;
+      root.querySelector(".fb-row").before(sent);
+    }
+    if (p.status !== "pendente") {
+      const undo = document.createElement("button");
+      undo.type = "button"; undo.className = "undo"; undo.textContent = "Mudei de ideia — voltar para pendente";
+      undo.addEventListener("click", async () => {
+        await sendFeedback(p.id, "pendente", null);
+        await loadData();
+      });
+      root.querySelector(".fb-row").after(undo);
     }
 
     okBtn.addEventListener("click", async () => {
