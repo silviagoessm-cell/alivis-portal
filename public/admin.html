@@ -7,18 +7,15 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/brand.css">
 <style>
-  .imgs-box{border:1px dashed var(--line);border-radius:10px;padding:10px;margin-bottom:12px;background:#fff}
-  .imgs-box .imgs-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
-  .imgs-list{display:flex;flex-wrap:wrap;gap:8px}
-  .img-item{position:relative;width:96px;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface-2);cursor:grab}
-  .img-item.dragging{opacity:.4}
-  .img-item.over{outline:2px solid var(--accent)}
-  .img-item img{display:block;width:100%;aspect-ratio:1;object-fit:cover}
-  .img-item .num{position:absolute;top:4px;left:4px;background:var(--accent);color:#fff;border-radius:20px;font-size:11px;font-weight:700;padding:1px 7px}
-  .img-item .bar{display:flex;justify-content:space-between;padding:3px}
-  .img-item .bar button{border:none;background:transparent;cursor:pointer;font-size:14px;padding:2px 5px;color:var(--text-dim)}
-  .img-item.uploading img{opacity:.35}
-  .img-item .err{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(251,232,225,.9);color:var(--warn);font-size:11px;text-align:center;padding:4px}
+  .cl-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+  .cl-head h3{font-size:19px}
+  .linkbox{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  .linkbox input{flex:1 1 260px;padding:9px 11px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:12.5px;color:var(--text-dim)}
+  .row-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .msg{font-size:13px;margin:8px 0 0;color:var(--text-dim)}
+  .msg.ok{color:var(--good)}
+  .msg.bad{color:var(--warn)}
+  .empty{color:var(--text-dim);font-size:14px}
 </style>
 </head>
 <body>
@@ -27,401 +24,132 @@
     <div class="brand-row" style="margin-bottom:0">
       <div class="avatar">AL</div>
       <div>
-        <h1>Álivis — Admin</h1>
-        <div class="sub">Painel da agência</div>
+        <h1>Álivis — Calendários dos clientes</h1>
+        <div class="sub">Um link por cliente, ligado ao calendário dele no Notion</div>
       </div>
     </div>
     <button class="btn ghost" id="logoutBtn">Sair</button>
   </div>
 
-  <div class="card">
-    <h3 style="margin-bottom:10px">Clientes</h3>
-    <table id="clientsTable">
-      <thead><tr><th>Marca</th><th>Usuário</th><th></th></tr></thead>
-      <tbody></tbody>
-    </table>
-  </div>
+  <div id="clients"></div>
 
   <div class="card">
     <h3 style="margin-bottom:10px">Novo cliente</h3>
     <form id="newClientForm">
-      <div class="field"><label>Nome da marca/cliente</label><input id="ncBrand" required></div>
-      <div class="field"><label>Usuário (login)</label><input id="ncUser" required></div>
-      <div class="field"><label>Senha</label><input id="ncPass" type="text" required></div>
-      <div class="field"><label>ID do banco de posts no Notion (opcional)</label><input id="ncNotion" placeholder="cole o link ou ID do banco de posts deste cliente"></div>
-      <button class="btn" type="submit">Criar cliente</button>
-      <p class="error" id="ncErr" style="display:none"></p>
+      <div class="field"><label>Nome do cliente</label><input id="ncBrand" required placeholder="Ex.: Esmarilda"></div>
+      <div class="field"><label>Link do calendário de conteúdo no Notion</label><input id="ncNotion" placeholder="cole aqui o link do calendário do cliente"></div>
+      <button class="btn" type="submit">Criar e gerar link</button>
+      <p class="msg" id="ncMsg"></p>
     </form>
-  </div>
-
-  <div class="card" id="clientDetailCard" style="display:none">
-    <h3 id="clientDetailTitle" style="margin-bottom:10px"></h3>
-    <div id="clientHistory"></div>
-
-    <h3 style="margin:20px 0 10px">Banco de posts do Notion</h3>
-    <div class="field">
-      <label>ID do banco de posts deste cliente</label>
-      <input id="notionDbInput" placeholder="cole o link ou ID do banco de posts">
-    </div>
-    <button type="button" class="btn secondary" id="saveNotionDbBtn">Salvar vínculo com o Notion</button>
-    <p class="hint" id="notionDbHint" style="margin-top:8px"></p>
-
-    <h3 style="margin:20px 0 10px">Nova rodada</h3>
-    <form id="newRoundForm">
-      <div class="field"><label>Nome da rodada (ex: "Rodada — Outubro")</label><input id="roundLabel" required></div>
-      <div id="postRows"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button type="button" class="btn secondary" id="addPostRowBtn">+ Adicionar post</button>
-        <button type="button" class="btn secondary" id="importNotionBtn">📥 Importar do Notion</button>
-      </div>
-      <p class="error" id="importErr" style="display:none"></p>
-      <div style="margin-top:14px">
-        <button class="btn" type="submit">Criar rodada e enviar</button>
-      </div>
-      <p class="error" id="roundErr" style="display:none"></p>
-    </form>
+    <p class="hint">Antes, no Notion: abra o calendário do cliente → ⋯ → Conexões → adicione a integração do portal. Se a integração já estiver conectada na página Central Marketing, os calendários dentro dela já herdam o acesso.</p>
   </div>
 </div>
 
 <script>
-  function escapeHtml(t) { return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-  let CLIENTS = [];
-  let SELECTED_CLIENT = null;
+  function esc(t) { return String(t == null ? "" : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  const linkOf = c => location.origin + "/c/" + c.link_token;
 
   async function requireAdmin() {
-    const res = await fetch("/api/me");
-    const data = await res.json();
-    if (data.role !== "admin") window.location.href = "/";
+    const data = await (await fetch("/api/me")).json();
+    if (data.role !== "admin") location.href = "/";
   }
 
-
-  // ---------- imagens: seleção em lote, envio, ordem ----------
-  function naturalSort(a, b) {
-    return a.name.localeCompare(b.name, "pt-BR", { numeric: true, sensitivity: "base" });
-  }
-
-  function resizeToJpeg(file, maxSide = 1350) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      const url = URL.createObjectURL(file);
-      img.onload = () => {
-        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
-        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
-        const canvas = document.createElement("canvas");
-        canvas.width = w; canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);
-        ctx.drawImage(img, 0, 0, w, h);
-        URL.revokeObjectURL(url);
-        canvas.toBlob(b => b ? resolve({ blob: b, preview: canvas.toDataURL("image/jpeg", 0.5) }) : reject(new Error("falha")), "image/jpeg", 0.88);
-      };
-      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Não consegui ler " + file.name)); };
-      img.src = url;
-    });
-  }
-
-  async function uploadBlob(blob) {
-    const res = await fetch("/api/admin/upload", { method: "POST", headers: { "content-type": "image/jpeg" }, body: blob });
+  async function api(method, body) {
+    const res = await fetch("/api/admin/clients", { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Falha no envio.");
-    return data.url;
+    return { ok: res.ok, data };
   }
 
-  function setupImages(row) {
-    const list = row.querySelector(".imgs-list");
-    const input = row.querySelector(".imgInput");
-    row._imgs = []; // { id, url, preview, state }
-    let dragId = null;
+  function setMsg(el, text, kind) { el.textContent = text; el.className = "msg " + (kind || ""); }
 
-    function draw() {
-      list.innerHTML = "";
-      row._imgs.forEach((it, i) => {
-        const el = document.createElement("div");
-        el.className = "img-item" + (it.state === "up" ? " uploading" : "");
-        el.draggable = true;
-        el.dataset.id = it.id;
-        el.innerHTML = `<img alt=""><span class="num">${i + 1}</span>
-          <div class="bar"><button type="button" data-a="l" title="Mover para antes">◀</button><button type="button" data-a="x" title="Remover">✕</button><button type="button" data-a="r" title="Mover para depois">▶</button></div>`;
-        el.querySelector("img").src = it.preview || it.url;
-        if (it.state === "err") {
-          const e = document.createElement("div"); e.className = "err"; e.textContent = it.msg || "Erro";
-          el.appendChild(e);
-        }
-        el.addEventListener("click", ev => {
-          const a = ev.target.dataset && ev.target.dataset.a;
-          if (!a) return;
-          const idx = row._imgs.findIndex(x => x.id === it.id);
-          if (a === "x") row._imgs.splice(idx, 1);
-          if (a === "l" && idx > 0) [row._imgs[idx - 1], row._imgs[idx]] = [row._imgs[idx], row._imgs[idx - 1]];
-          if (a === "r" && idx < row._imgs.length - 1) [row._imgs[idx + 1], row._imgs[idx]] = [row._imgs[idx], row._imgs[idx + 1]];
-          draw();
-        });
-        el.addEventListener("dragstart", () => { dragId = it.id; el.classList.add("dragging"); });
-        el.addEventListener("dragend", () => { dragId = null; draw(); });
-        el.addEventListener("dragover", ev => { ev.preventDefault(); el.classList.add("over"); });
-        el.addEventListener("dragleave", () => el.classList.remove("over"));
-        el.addEventListener("drop", ev => {
-          ev.preventDefault();
-          if (!dragId || dragId === it.id) return;
-          const from = row._imgs.findIndex(x => x.id === dragId);
-          const to = row._imgs.findIndex(x => x.id === it.id);
-          const [moved] = row._imgs.splice(from, 1);
-          row._imgs.splice(to, 0, moved);
-          draw();
-        });
-        list.appendChild(el);
-      });
-    }
-
-    row.querySelector(".pickImgs").addEventListener("click", () => input.click());
-    input.addEventListener("change", async () => {
-      const files = Array.from(input.files).sort(naturalSort);
-      input.value = "";
-      const items = files.map(f => ({ id: crypto.randomUUID(), file: f, state: "up", url: null, preview: null }));
-      row._imgs.push(...items);
-      draw();
-      // reduz e envia em fila (3 por vez), a ordem final é a da lista
-      let next = 0;
-      async function worker() {
-        while (next < items.length) {
-          const it = items[next++];
-          try {
-            const { blob, preview } = await resizeToJpeg(it.file);
-            it.preview = preview;
-            it.url = await uploadBlob(blob);
-            it.state = "ok";
-          } catch (e) { it.state = "err"; it.msg = e.message; }
-          delete it.file;
-          draw();
-        }
-      }
-      await Promise.all([worker(), worker(), worker()]);
-    });
-    row._draw = draw;
-  }
-
-  function rowImageUrls(row) {
-    return (row._imgs || []).filter(i => i.state === "ok" && i.url).map(i => i.url);
-  }
-
-  function postRowTemplate(initial) {
-    const row = document.createElement("div");
-    row.className = "post-form-row";
-    row.innerHTML = `
-      <div class="field"><label>Formato</label>
-        <select class="pf-formato">
-          <option value="reels">Reels 🎞️</option>
-          <option value="carrossel">Carrossel 🖼️</option>
-          <option value="static">Post estático 🖼️</option>
-          <option value="stories">Stories 📸</option>
-        </select>
-      </div>
-      <div class="field"><label>Rede(s) — separadas por vírgula</label><input class="pf-rede" value="Instagram"></div>
-      <div class="field"><label>Data programada</label><input class="pf-data" placeholder="27 ago"></div>
-      <div class="field"><label>Hook / texto principal</label><textarea class="pf-hook"></textarea></div>
-      <div class="imgs-box">
-        <div class="imgs-head">
-          <button type="button" class="btn secondary pickImgs">🖼️ Escolher imagens (várias de uma vez)</button>
-          <input type="file" class="imgInput" accept="image/*" multiple style="display:none">
-          <span class="hint">Selecione todas as imagens do post. Elas entram em ordem de nome (1, 2, 3…). Arraste ou use ◀ ▶ para reordenar.</span>
-        </div>
-        <div class="imgs-list"></div>
-      </div>
-      <button type="button" class="btn ghost removeRow">Remover post</button>
-    `;
-    setupImages(row);
-    row.querySelector(".removeRow").addEventListener("click", () => row.remove());
-    if (initial) {
-      if (initial.formato) row.querySelector(".pf-formato").value = initial.formato;
-      if (initial.rede) row.querySelector(".pf-rede").value = (initial.rede || []).join(", ");
-      if (initial.data) row.querySelector(".pf-data").value = initial.data;
-      if (initial.hook) row.querySelector(".pf-hook").value = initial.hook;
-    }
-    return row;
-  }
-
-  document.getElementById("addPostRowBtn").addEventListener("click", () => {
-    document.getElementById("postRows").appendChild(postRowTemplate());
-  });
-
-  async function loadClients() {
+  async function load() {
     const res = await fetch("/api/admin/clients");
-    const data = await res.json();
-    CLIENTS = data.clients || [];
-    const tbody = document.querySelector("#clientsTable tbody");
-    tbody.innerHTML = "";
-    CLIENTS.forEach(c => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${c.brand_name}</td><td>${c.username}</td><td><button class="btn secondary" data-id="${c.id}">Ver</button></td>`;
-      tr.querySelector("button").addEventListener("click", () => selectClient(c));
-      tbody.appendChild(tr);
-    });
+    const { clients = [] } = await res.json();
+    const box = document.getElementById("clients");
+    box.innerHTML = "";
+    if (!clients.length) { box.innerHTML = '<div class="card empty">Nenhum cliente ainda. Crie o primeiro abaixo.</div>'; return; }
+    clients.forEach(c => box.appendChild(card(c)));
   }
 
-  async function selectClient(c) {
-    SELECTED_CLIENT = c;
-    document.getElementById("clientDetailCard").style.display = "block";
-    document.getElementById("clientDetailTitle").textContent = c.brand_name + " (@" + c.username + ")";
-    document.getElementById("notionDbInput").value = c.notion_database_id || "";
-    document.getElementById("notionDbHint").textContent = c.notion_database_id
-      ? "Vinculado ✓"
-      : "Sem banco de posts vinculado ainda.";
-    document.getElementById("postRows").innerHTML = "";
-    document.getElementById("postRows").appendChild(postRowTemplate());
-    await loadHistory();
-  }
-
-  document.getElementById("saveNotionDbBtn").addEventListener("click", async () => {
-    if (!SELECTED_CLIENT) return;
-    const notionDatabaseId = document.getElementById("notionDbInput").value.trim();
-    const hint = document.getElementById("notionDbHint");
-    hint.textContent = "Salvando...";
-    const res = await fetch("/api/admin/clients", {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ clientId: SELECTED_CLIENT.id, notionDatabaseId }),
-    });
-    hint.textContent = res.ok ? "Vinculado ✓" : "Não foi possível salvar.";
-    await loadClients();
-  });
-
-  document.getElementById("importNotionBtn").addEventListener("click", async () => {
-    if (!SELECTED_CLIENT) return;
-    const err = document.getElementById("importErr");
-    err.style.display = "none";
-    const btn = document.getElementById("importNotionBtn");
-    btn.disabled = true;
-    btn.textContent = "Importando...";
-    try {
-      const res = await fetch("/api/admin/notion-import?clientId=" + SELECTED_CLIENT.id);
-      const data = await res.json();
-      if (!res.ok) {
-        err.textContent = data.error || "Não foi possível importar do Notion.";
-        err.style.display = "block";
-        return;
+  function card(c) {
+    const el = document.createElement("div");
+    el.className = "card";
+    el.innerHTML = `
+      <div class="cl-head"><h3>${esc(c.brand_name)}</h3><span class="hint" style="margin:0">${c.notion_database_id ? "Notion ligado ✓" : "Sem calendário ligado"}</span></div>
+      <div class="linkbox">
+        <input readonly value="${esc(linkOf(c))}" aria-label="Link do cliente">
+        <button class="btn" data-a="copy">Copiar link</button>
+        <a class="btn secondary" data-a="open" href="/c/${esc(c.link_token)}" target="_blank" rel="noopener">Abrir</a>
+      </div>
+      <div class="field"><label>Calendário no Notion (link)</label>
+        <input class="nid" value="${esc(c.notion_database_id || "")}" placeholder="cole o link do calendário do cliente"></div>
+      <div class="row-actions">
+        <button class="btn secondary" data-a="save">Salvar calendário</button>
+        <button class="btn secondary" data-a="test">Testar conexão</button>
+        <button class="btn ghost" data-a="regen">Gerar novo link</button>
+        <button class="btn ghost" data-a="del">Excluir</button>
+      </div>
+      <p class="msg"></p>`;
+    const msg = el.querySelector(".msg");
+    const nid = el.querySelector(".nid");
+    el.addEventListener("click", async ev => {
+      const a = ev.target.dataset && ev.target.dataset.a;
+      if (!a || a === "open") return;
+      const btn = ev.target;
+      if (a === "copy") {
+        try { await navigator.clipboard.writeText(linkOf(c)); setMsg(msg, "Link copiado ✓", "ok"); }
+        catch { el.querySelector(".linkbox input").select(); setMsg(msg, "Selecionei o link: use Ctrl+C.", ""); }
       }
-      if (!data.posts || data.posts.length === 0) {
-        err.textContent = "Nenhum post aguardando aprovação encontrado nesse banco do Notion.";
-        err.style.display = "block";
-        return;
+      if (a === "save") {
+        btn.disabled = true; setMsg(msg, "Salvando…");
+        const r = await api("PATCH", { clientId: c.id, notionDatabaseId: nid.value });
+        btn.disabled = false;
+        if (!r.ok) return setMsg(msg, r.data.error || "Não foi possível salvar.", "bad");
+        setMsg(msg, r.data.warning ? "Salvo, mas: " + r.data.warning : "Salvo ✓ — calendário ligado.", r.data.warning ? "bad" : "ok");
       }
-      const postRows = document.getElementById("postRows");
-      postRows.innerHTML = "";
-      data.posts.forEach((p) => postRows.appendChild(postRowTemplate(p)));
-    } finally {
-      btn.disabled = false;
-      btn.textContent = "📥 Importar do Notion";
-    }
-  });
-
-  function statusLabel(s) {
-    return s === "aprovado" ? "✅ Aprovado" : s === "ajuste" ? "✎ Ajuste pedido" : "⏳ Pendente";
-  }
-
-  async function loadHistory() {
-    const res = await fetch("/api/admin/rounds?clientId=" + SELECTED_CLIENT.id);
-    const data = await res.json();
-    const el = document.getElementById("clientHistory");
-    el.innerHTML = "";
-    (data.rounds || []).forEach(round => {
-      const block = document.createElement("div");
-      block.className = "round-block";
-      block.innerHTML = `<p class="round-title">${round.label}</p>`;
-      const table = document.createElement("table");
-      table.innerHTML = `<thead><tr><th>Post</th><th>Status</th><th>Feedback</th><th></th></tr></thead>`;
-      const tbody = document.createElement("tbody");
-      round.posts.forEach(p => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td>${p.icon} ${escapeHtml(p.hook.slice(0, 60))}${Array.isArray(p.slides) && p.slides.some(x => x && x.img) ? ' 🖼️×' + p.slides.filter(x => x && x.img).length : ''}</td>
-          <td>${statusLabel(p.status)}</td>
-          <td>${escapeHtml(p.feedback || "—")}</td>
-          <td>${p.status === "ajuste" ? '<button class="btn ghost markDone">Marcar ajuste feito</button>' : ""}</td>
-        `;
-        const btn = tr.querySelector(".markDone");
-        if (btn) btn.addEventListener("click", async () => {
-          await fetch("/api/admin/rounds", {
-            method: "PATCH",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ postId: p.id, status: "aprovado" }),
-          });
-          await loadHistory();
-        });
-        tbody.appendChild(tr);
-      });
-      table.appendChild(tbody);
-      block.appendChild(table);
-      el.appendChild(block);
+      if (a === "test") {
+        btn.disabled = true; setMsg(msg, "Lendo o calendário…");
+        const res = await fetch("/api/admin/notion-import?clientId=" + c.id);
+        const d = await res.json().catch(() => ({}));
+        btn.disabled = false;
+        if (!res.ok) return setMsg(msg, d.error || "Não consegui ler o calendário.", "bad");
+        let t = `Conectado ✓ — o cliente verá ${d.total} post(s) (Programar/Ajuste). ${d.aprovados} aprovado(s), ${d.ajustes} em ajuste`;
+        if (d.semImagem) t += `, ${d.semImagem} sem imagem no corpo da página`;
+        if (d.colunasCriadas && d.colunasCriadas.length) t += `. Colunas criadas no Notion: ${d.colunasCriadas.join(", ")}`;
+        setMsg(msg, t + ".", "ok");
+      }
+      if (a === "regen") {
+        if (!confirm("O link antigo vai parar de funcionar. Gerar um novo?")) return;
+        const r = await api("PATCH", { clientId: c.id, regenerateLink: true });
+        if (r.ok) await load();
+      }
+      if (a === "del") {
+        if (!confirm("Excluir " + c.brand_name + " do portal? (O calendário no Notion não é afetado.)")) return;
+        const r = await api("DELETE", { clientId: c.id });
+        if (r.ok) await load();
+      }
     });
+    return el;
   }
 
-  document.getElementById("newClientForm").addEventListener("submit", async (e) => {
+  document.getElementById("newClientForm").addEventListener("submit", async e => {
     e.preventDefault();
-    const brandName = document.getElementById("ncBrand").value.trim();
-    const username = document.getElementById("ncUser").value.trim();
-    const password = document.getElementById("ncPass").value;
-    const notionDatabaseId = document.getElementById("ncNotion").value.trim();
-    const err = document.getElementById("ncErr");
-    err.style.display = "none";
-    const res = await fetch("/api/admin/clients", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ brandName, username, password, notionDatabaseId }),
-    });
-    const data = await res.json();
-    if (!res.ok) { err.textContent = data.error; err.style.display = "block"; return; }
+    const msg = document.getElementById("ncMsg");
+    setMsg(msg, "Criando…");
+    const r = await api("POST", { brandName: document.getElementById("ncBrand").value, notionDatabaseId: document.getElementById("ncNotion").value });
+    if (!r.ok) return setMsg(msg, r.data.error || "Não foi possível criar.", "bad");
     document.getElementById("newClientForm").reset();
-    await loadClients();
-  });
-
-  document.getElementById("newRoundForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const label = document.getElementById("roundLabel").value.trim();
-    const rows = Array.from(document.querySelectorAll("#postRows .post-form-row"));
-    const formatLabels = { reels: ["Reels", "🎞️"], carrossel: ["Carrossel", "🖼️"], static: ["Post estático", "🖼️"], stories: ["Stories", "📸"] };
-    const posts = rows.map(row => {
-      const formato = row.querySelector(".pf-formato").value;
-      const [label, icon] = formatLabels[formato];
-      const urls = rowImageUrls(row);
-      const slides = urls.length ? (formato === "carrossel" ? urls : urls.slice(0, 1)).map(u => ({ img: u })) : null;
-      return {
-        formato, label, icon, slides,
-        rede: row.querySelector(".pf-rede").value.split(",").map(s => s.trim()).filter(Boolean),
-        data: row.querySelector(".pf-data").value.trim(),
-        hook: row.querySelector(".pf-hook").value.trim(),
-      };
-    }).filter(p => p.hook);
-
-    const err = document.getElementById("roundErr");
-    err.style.display = "none";
-    if (rows.some(r => (r._imgs || []).some(i => i.state === "up"))) {
-      err.textContent = "Aguarde: ainda estou enviando as imagens.";
-      err.style.display = "block"; return;
-    }
-    if (rows.some(r => (r._imgs || []).some(i => i.state === "err"))) {
-      err.textContent = "Alguma imagem deu erro. Remova (✕) e escolha de novo.";
-      err.style.display = "block"; return;
-    }
-    const res = await fetch("/api/admin/rounds", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ clientId: SELECTED_CLIENT.id, label, posts }),
-    });
-    const data = await res.json();
-    if (!res.ok) { err.textContent = data.error; err.style.display = "block"; return; }
-    document.getElementById("newRoundForm").reset();
-    document.getElementById("postRows").innerHTML = "";
-    document.getElementById("postRows").appendChild(postRowTemplate());
-    await loadHistory();
+    setMsg(msg, r.data.warning ? "Cliente criado, mas: " + r.data.warning : "Cliente criado ✓", r.data.warning ? "bad" : "ok");
+    await load();
   });
 
   document.getElementById("logoutBtn").addEventListener("click", async () => {
     await fetch("/api/logout", { method: "POST" });
-    window.location.href = "/";
+    location.href = "/";
   });
 
   requireAdmin();
-  loadClients();
+  load();
 </script>
 </body>
 </html>

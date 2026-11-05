@@ -13,7 +13,7 @@
     <div class="avatar">AL</div>
     <div>
       <h1>Álivis</h1>
-      <div class="sub">Portal de aprovação de conteúdo</div>
+      <div class="sub">Painel da agência</div>
     </div>
   </div>
 
@@ -31,7 +31,7 @@
       <p class="error" id="err" style="display:none"></p>
     </form>
   </div>
-  <p class="hint">Acesso fornecido pela sua agência. Problemas pra entrar? Fale com quem te enviou esse link.</p>
+  <p class="hint">Acesso restrito à equipe Álivis. Clientes entram pelo link que receberam.</p>
 </div>
 
 <script>
@@ -55,7 +55,7 @@
         err.style.display = "block";
         return;
       }
-      window.location.href = data.role === "admin" ? "/admin.html" : "/cliente.html";
+      window.location.href = "/admin.html";
     } catch (e) {
       err.textContent = "Erro de conexão. Tente novamente.";
       err.style.display = "block";

@@ -1,37 +1,30 @@
 import type { Context, Config } from "@netlify/functions";
-import { db } from "../../lib/db.ts";
-import { getSessionFromRequest, json } from "../../lib/auth.ts";
+import { json } from "../../lib/auth.ts";
+import { clientByToken } from "../../lib/clients.ts";
+import { applyFeedback, NotionError } from "../../lib/notion.ts";
 
-export default async (req: Request, _context: Context) => {
-  const session = getSessionFromRequest(req);
-  if (!session || session.role !== "cliente") {
-    return json({ error: "Não autorizado." }, { status: 401 });
-  }
-  if (req.method !== "POST") return json({ error: "method" }, { status: 405 });
+// Aprovação / pedido de ajuste do cliente: grava direto no Notion.
+export default async (req: Request, context: Context) => {
+  const client = await clientByToken(context.params.token);
+  if (!client || !client.notion_database_id) return json({ error: "Link inválido." }, { status: 404 });
 
   const body = await req.json().catch(() => null);
-  const postId = body?.postId;
+  const postId = String(body?.postId || "");
   const status = body?.status; // "aprovado" | "ajuste" | "pendente"
-  const feedback = body?.feedback || null;
-  if (!postId || !["aprovado", "ajuste", "pendente"].includes(status)) {
-    return json({ error: "postId e status (aprovado|ajuste|pendente) são obrigatórios." }, { status: 400 });
+  const feedback = body?.feedback ? String(body.feedback).trim() : null;
+  if (!/^[0-9a-f-]{32,36}$/.test(postId) || !["aprovado", "ajuste", "pendente"].includes(status)) {
+    return json({ error: "Dados inválidos." }, { status: 400 });
   }
+  if (status === "ajuste" && !feedback) return json({ error: "Descreva o ajuste." }, { status: 400 });
 
-  const database = db();
-  // garante que o post pertence a uma rodada deste cliente
-  const [owned] = await database.sql`
-    SELECT p.id FROM posts p
-    JOIN rounds r ON r.id = p.round_id
-    WHERE p.id = ${postId} AND r.client_id = ${session.clientId}
-  `;
-  if (!owned) return json({ error: "Post não encontrado." }, { status: 404 });
-
-  await database.sql`
-    UPDATE posts SET status = ${status}, feedback = ${feedback}, updated_at = now()
-    WHERE id = ${postId}
-  `;
-
-  return json({ ok: true }, { status: 200 });
+  try {
+    await applyFeedback(client.notion_database_id, postId, status, feedback);
+    return json({ ok: true }, { status: 200 });
+  } catch (e) {
+    console.error("client-feedback", e);
+    if (e instanceof NotionError && e.status === 404) return json({ error: "Post não encontrado." }, { status: 404 });
+    return json({ error: "Não consegui salvar agora. Tente novamente." }, { status: 502 });
+  }
 };
 
-export const config: Config = { path: "/api/cliente/feedback" };
+export const config: Config = { path: "/api/c/:token/feedback", method: "POST" };

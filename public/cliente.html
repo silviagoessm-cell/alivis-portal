@@ -37,6 +37,10 @@
   .caption.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
   .fb-sent{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--warn-bg);color:var(--warn);font-size:13px}
   .undo{border:none;background:none;color:var(--text-dim);text-decoration:underline;font-size:12px;cursor:pointer;padding:0;margin-top:8px}
+  .month-tabs{display:flex;gap:6px;overflow-x:auto;margin:12px 0 4px;padding-bottom:4px}
+  .month-tabs button{flex:0 0 auto;border:1px solid var(--line);background:var(--surface-2);color:var(--text-dim);padding:7px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+  .month-tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .status-pill.revisao{background:var(--surface-2);color:var(--text-dim)}
   .fb-btn:focus-visible,.car-nav:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 </style>
 </head>
@@ -50,7 +54,6 @@
         <div class="sub">Portal de aprovação de conteúdo</div>
       </div>
     </div>
-    <button class="btn ghost" id="logoutBtn">Sair</button>
   </div>
 
   <p class="hint">Toque em <b>Aprovar</b> se estiver tudo certo, ou em <b>Pedir ajuste</b> pra descrever o que precisa mudar.</p>
@@ -97,55 +100,83 @@
 
 <script>
   let STATE = null;
+  let CURRENT = null; // id do mês exibido
+  const TOKEN = (location.pathname.match(/^\/c\/([0-9a-f]{48})/) || [])[1];
+
+  function showMessage(text) {
+    document.getElementById("rounds").innerHTML = "";
+    document.getElementById("progress").style.display = "none";
+    const p = document.createElement("p");
+    p.className = "hint"; p.style.marginTop = "24px"; p.textContent = text;
+    document.getElementById("rounds").appendChild(p);
+  }
 
   async function loadData() {
-    const res = await fetch("/api/cliente/dados");
-    if (res.status === 401) { window.location.href = "/"; return; }
+    if (!TOKEN) { showMessage("Link inválido. Peça um novo link para a sua agência."); return; }
+    let res;
+    try { res = await fetch(`/api/c/${TOKEN}/dados`); } catch { showMessage("Sem conexão. Tente novamente."); return; }
+    if (res.status === 404) { showMessage("Este link não está mais ativo. Peça um novo link para a sua agência."); return; }
+    if (!res.ok) { showMessage("Não consegui carregar agora. Atualize a página em instantes."); return; }
     STATE = await res.json();
     document.getElementById("brandTitle").textContent = STATE.brandName || "Álivis";
+    if (!STATE.rounds.length) { showMessage("Ainda não há posts para aprovar. Avisaremos quando houver."); return; }
+    if (!STATE.rounds.some(r => r.id === CURRENT)) CURRENT = pickMonth();
     render();
     updateProgress();
   }
 
+  function pickMonth() {
+    const now = new Date();
+    const cur = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+    const pend = STATE.rounds.find(r => r.posts.some(p => p.status === "pendente"));
+    return (STATE.rounds.find(r => r.id === cur) || pend || STATE.rounds[0]).id;
+  }
+
   function statusLabel(s) {
-    return s === "aprovado" ? "Aprovado" : s === "ajuste" ? "Ajuste pedido" : "Pendente";
+    return s === "aprovado" ? "Aprovado" : s === "ajuste" ? "Ajuste pedido" : s === "revisao" ? "Em revisão pela equipe" : "Pendente";
   }
 
   function render() {
     const container = document.getElementById("rounds");
     container.innerHTML = "";
-    STATE.rounds.forEach((round, idx) => {
-      const block = document.createElement("div");
-      block.className = "round-block";
-      const title = document.createElement("p");
-      title.className = "round-title";
-      title.textContent = (idx === 0 ? "Rodada atual — " : "Rodada anterior — ") + round.label;
-      block.appendChild(title);
-
-      if (idx === 0) {
-        const grid = document.createElement("div");
-        grid.className = "grid";
-        round.posts.forEach(p => {
-          const tile = document.createElement("button");
-          tile.className = "tile";
-          const cover = imagesOf(p)[0];
-          tile.innerHTML = `${cover ? `<img alt="" loading="lazy">` : ""}<span class="status-dot ${p.status}"></span><span class="fmt">${p.icon}</span>${cover ? "" : `<span class="hook"></span>`}`;
-          if (cover) tile.querySelector("img").src = cover; else tile.querySelector(".hook").textContent = p.hook;
-          tile.setAttribute("aria-label", "Abrir post: " + p.hook.slice(0, 60));
-          tile.addEventListener("click", () => {
-            document.getElementById("post-" + p.id)?.scrollIntoView({ behavior: "smooth" });
-          });
-          grid.appendChild(tile);
-        });
-        block.appendChild(grid);
-      }
-
-      round.posts.forEach((p, i) => {
-        block.appendChild(renderPost(p, idx === 0, i + 1, round.posts.length));
+    if (STATE.rounds.length > 1) {
+      const tabs = document.createElement("div");
+      tabs.className = "month-tabs";
+      STATE.rounds.forEach(r => {
+        const b = document.createElement("button");
+        b.type = "button"; b.textContent = r.label;
+        b.className = r.id === CURRENT ? "on" : "";
+        b.addEventListener("click", () => { CURRENT = r.id; render(); updateProgress(); window.scrollTo({ top: 0 }); });
+        tabs.appendChild(b);
       });
+      container.appendChild(tabs);
+    }
+    const round = STATE.rounds.find(r => r.id === CURRENT) || STATE.rounds[0];
+    const block = document.createElement("div");
+    block.className = "round-block";
+    const title = document.createElement("p");
+    title.className = "round-title";
+    title.textContent = round.label;
+    block.appendChild(title);
 
-      container.appendChild(block);
+    const grid = document.createElement("div");
+    grid.className = "grid";
+    round.posts.forEach(p => {
+      const tile = document.createElement("button");
+      tile.className = "tile";
+      const cover = imagesOf(p)[0];
+      tile.innerHTML = `${cover ? `<img alt="" loading="lazy">` : ""}<span class="status-dot ${p.status}"></span><span class="fmt">${p.icon}</span>${cover ? "" : `<span class="hook"></span>`}`;
+      if (cover) tile.querySelector("img").src = cover; else tile.querySelector(".hook").textContent = p.hook;
+      tile.setAttribute("aria-label", "Abrir post: " + p.hook.slice(0, 60));
+      tile.addEventListener("click", () => {
+        document.getElementById("post-" + p.id)?.scrollIntoView({ behavior: "smooth" });
+      });
+      grid.appendChild(tile);
     });
+    block.appendChild(grid);
+
+    round.posts.forEach((p, i) => block.appendChild(renderPost(p, i + 1, round.posts.length)));
+    container.appendChild(block);
   }
 
   function imagesOf(p) {
@@ -153,12 +184,12 @@
   }
 
   function updateProgress() {
-    const cur = STATE.rounds[0];
+    const cur = STATE && STATE.rounds.find(r => r.id === CURRENT);
     const box = document.getElementById("progress");
     if (!cur || !cur.posts.length) { box.style.display = "none"; return; }
     const total = cur.posts.length;
     const ok = cur.posts.filter(p => p.status === "aprovado").length;
-    const aj = cur.posts.filter(p => p.status === "ajuste").length;
+    const aj = cur.posts.filter(p => p.status === "ajuste" || p.status === "revisao").length;
     const pend = total - ok - aj;
     box.style.display = "block";
     document.getElementById("progressTxt").innerHTML = `<b>${ok} de ${total}</b> aprovados` + (aj ? ` · ${aj} com ajuste pedido` : "") + (pend ? ` · ${pend} aguardando você` : " · tudo respondido ✅");
@@ -218,7 +249,8 @@
     show(0);
   }
 
-  function renderPost(p, interactive, num, total) {
+  function renderPost(p, num, total) {
+    const interactive = true;
     const tpl = document.getElementById("tplPost").content.cloneNode(true);
     const root = tpl.querySelector("[data-post]");
     root.id = "post-" + p.id;
@@ -238,8 +270,9 @@
     tags.innerHTML = `<span class="tag">${p.icon} ${p.label}</span>` + (p.rede || []).map(r => `<span class="tag">${r}</span>`).join("");
     buildMedia(root, p);
     const cap = root.querySelector(".caption");
-    cap.textContent = p.hook;
-    if (p.hook.length > 140) {
+    const legenda = p.legenda || p.hook;
+    cap.textContent = legenda;
+    if (legenda.length > 140) {
       cap.classList.add("clamp");
       const more = document.createElement("button");
       more.type = "button"; more.className = "more"; more.textContent = "ver legenda completa";
@@ -266,6 +299,13 @@
       return root;
     }
 
+    if (p.status === "revisao") {
+      okBtn.style.display = "none"; adjustBtn.style.display = "none";
+      const rev = document.createElement("div");
+      rev.className = "fb-sent"; rev.textContent = "A equipe está ajustando este post. Você será avisado quando voltar para aprovação.";
+      root.querySelector(".fb-row").before(rev);
+      return root;
+    }
     if (p.status === "ajuste" && p.feedback) {
       const sent = document.createElement("div");
       sent.className = "fb-sent";
@@ -308,17 +348,13 @@
   }
 
   async function sendFeedback(postId, status, feedback) {
-    await fetch("/api/cliente/feedback", {
+    const res = await fetch(`/api/c/${TOKEN}/feedback`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ postId, status, feedback }),
     });
+    if (!res.ok) alert("Não consegui salvar sua resposta agora. Tente novamente.");
   }
-
-  document.getElementById("logoutBtn").addEventListener("click", async () => {
-    await fetch("/api/logout", { method: "POST" });
-    window.location.href = "/";
-  });
 
   loadData();
 </script>

@@ -6,3 +6,4 @@
   from = "/c/*"
   to = "/cliente.html"
   status = 200
+  
