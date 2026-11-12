@@ -94,6 +94,11 @@
     clients.forEach(c => box.appendChild(card(c)));
   }
 
+  async function api2(url, body) {
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    return { ok: res.ok, data: await res.json().catch(() => ({})) };
+  }
+
   function card(c) {
     const el = document.createElement("div");
     el.className = "card";
@@ -104,6 +109,13 @@
         <button class="btn" data-a="copy">Copiar link</button>
         <a class="btn secondary" data-a="open" href="/c/${esc(c.link_token)}" target="_blank" rel="noopener">Abrir</a>
       </div>
+      <div class="field"><label>Link do briefing (mande depois do pagamento)</label>
+        <div class="linkbox" style="margin:0"><input readonly value="${esc(location.origin + '/b/' + c.link_token)}" aria-label="Link do briefing">
+        <button class="btn" data-a="copy-brief">Copiar</button>
+        <a class="btn secondary" href="/b/${esc(c.link_token)}" target="_blank" rel="noopener">Abrir</a></div>
+        <p class="hint brief-status" style="margin:6px 0 0">Verificando respostas…</p>
+        <div class="row-actions" style="margin-top:6px"><button class="btn secondary" data-a="brief-view" hidden>Ver respostas</button><button class="btn secondary" data-a="brief-push" hidden>Enviar ao Notion de novo</button></div>
+        <pre class="brief-out" hidden style="white-space:pre-wrap;background:var(--surface,#fff);border:1px solid var(--line,#ddd);border-radius:8px;padding:12px;font:inherit;max-height:420px;overflow:auto"></pre></div>
       <div class="field"><label>Calendário no Notion (link)</label>
         <input class="nid" value="${esc(c.notion_database_id || "")}" placeholder="cole o link do calendário do cliente"></div>
       <div class="profile-box">
@@ -111,8 +123,6 @@
         <div class="pimgs">
           <div class="pimg"><div class="th" data-th="avatar">${c.has_avatar ? `<img src="/api/c/${esc(c.link_token)}/perfil/avatar?t=${Date.now()}" alt="">` : "sem foto"}</div>
             <div><button class="btn secondary" data-a="pick-avatar">Foto de perfil</button><input type="file" accept="image/*" data-file="avatar" hidden></div></div>
-          <div class="pimg cover"><div class="th" data-th="cover">${c.has_cover ? `<img src="/api/c/${esc(c.link_token)}/perfil/cover?t=${Date.now()}" alt="">` : "sem capa"}</div>
-            <div><button class="btn secondary" data-a="pick-cover">Imagem de capa (print)</button><input type="file" accept="image/*" data-file="cover" hidden></div></div>
         </div>
         <div class="field"><label>@ do Instagram (sem o @)</label><input class="p-handle" value="${esc(c.handle || "")}" placeholder="ex.: esmarilda.corretora"></div>
         <div class="field"><label>Bio (até 400 caracteres)</label><textarea class="p-bio" maxlength="400" placeholder="Texto curto como na bio do Instagram">${esc(c.bio || "")}</textarea></div>
@@ -126,6 +136,19 @@
       </div>
       <p class="msg"></p>`;
     const msg = el.querySelector(".msg");
+    (async () => {
+      const st = el.querySelector(".brief-status");
+      try {
+        const r = await fetch("/api/admin/briefing?clientId=" + c.id); const d = await r.json();
+        const b = d.briefing;
+        if (!b) { st.textContent = "Ainda não respondeu."; return; }
+        const when = new Date(b.createdAt).toLocaleString("pt-BR");
+        st.textContent = "Respondido em " + when + (b.notion === "ok" ? " · salvo no Notion (" + (b.note || "card") + ") ✓" : b.notion === "falhou" ? " · NÃO foi para o Notion: " + (b.note || "erro") : " · só no portal (ligue o calendário para enviar ao Notion)");
+        el.querySelector('[data-a="brief-view"]').hidden = false;
+        el.querySelector('[data-a="brief-push"]').hidden = b.notion === "ok";
+        el._brief = b;
+      } catch { st.textContent = ""; }
+    })();
     const nid = el.querySelector(".nid");
     el.querySelectorAll("[data-file]").forEach(inp => inp.addEventListener("change", async () => {
       const file = inp.files[0]; inp.value = "";
@@ -149,6 +172,20 @@
       if (a === "save-profile") {
         const r = await api("PATCH", { clientId: c.id, handle: el.querySelector(".p-handle").value, bio: el.querySelector(".p-bio").value });
         setMsg(msg, r.ok ? "Perfil salvo ✓" : (r.data.error || "Não foi possível salvar."), r.ok ? "ok" : "bad");
+      }
+      if (a === "copy-brief") {
+        try { await navigator.clipboard.writeText(location.origin + "/b/" + c.link_token); setMsg(msg, "Link do briefing copiado ✓", "ok"); }
+        catch { setMsg(msg, "Selecione o link do briefing e use Ctrl+C.", ""); }
+      }
+      if (a === "brief-view" && el._brief) {
+        const out = el.querySelector(".brief-out"); const b = el._brief;
+        out.textContent = b.blocks.map(bl => "## " + bl.title + "\n" + bl.qs.map(q => q.q + "\n" + ((b.answers[q.id] || "").trim() || "(não respondeu)")).join("\n\n")).join("\n\n");
+        out.hidden = !out.hidden;
+      }
+      if (a === "brief-push") {
+        btn.disabled = true; setMsg(msg, "Enviando ao Notion…");
+        const r = await api2("/api/admin/briefing", { clientId: c.id }); btn.disabled = false;
+        setMsg(msg, r.ok ? "Briefing salvo no Notion (" + r.data.where + ") ✓" : (r.data.error || "Não consegui enviar."), r.ok ? "ok" : "bad");
       }
       if (a === "copy") {
         try { await navigator.clipboard.writeText(linkOf(c)); setMsg(msg, "Link copiado ✓", "ok"); }

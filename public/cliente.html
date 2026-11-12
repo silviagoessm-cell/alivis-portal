@@ -124,7 +124,6 @@
     <h1 class="p-name" id="brandTitle">Álivis</h1>
     <div class="p-handle" id="pHandle"></div>
     <p class="p-bio" id="pBio"></p>
-    <img class="p-cover" id="pCover" alt="" hidden>
   </section>
 
   <nav class="vtabs" aria-label="Modo de visualização">
@@ -271,8 +270,6 @@
     av.innerHTML = "";
     if (prof.avatar) { const im = document.createElement("img"); im.alt = ""; im.src = prof.avatar; av.appendChild(im); }
     else av.textContent = name.trim().slice(0, 2).toUpperCase();
-    const cover = $("pCover");
-    if (prof.cover) { cover.src = prof.cover; cover.hidden = false; } else cover.hidden = true;
     const all = STATE.rounds.flatMap(r => r.posts);
     $("stPosts").textContent = all.length;
     $("stOk").textContent = all.filter(p => p.status === "aprovado").length;
