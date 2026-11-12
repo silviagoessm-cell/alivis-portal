@@ -8,12 +8,18 @@ export default async (req: Request, context: Context) => {
   const token = context.params.token;
   const client = await clientByToken(token);
   if (!client) return json({ error: "Link inválido." }, { status: 404 });
+  const profile = {
+    handle: client.handle || "",
+    bio: client.bio || "",
+    avatar: client.avatar_key ? `/api/c/${token}/perfil/avatar?v=${client.avatar_key.slice(-8)}` : null,
+    cover: client.cover_key ? `/api/c/${token}/perfil/cover?v=${client.cover_key.slice(-8)}` : null,
+  };
   if (!client.notion_database_id) {
-    return json({ brandName: client.brand_name, rounds: [] }, { status: 200 });
+    return json({ brandName: client.brand_name, profile, rounds: [] }, { status: 200 });
   }
   try {
     const posts = await listPosts(client.notion_database_id, token);
-    return json({ brandName: client.brand_name, rounds: groupByMonth(posts) }, { status: 200, headers: { "cache-control": "no-store" } });
+    return json({ brandName: client.brand_name, profile, rounds: groupByMonth(posts) }, { status: 200, headers: { "cache-control": "no-store" } });
   } catch (e) {
     const status = e instanceof NotionError ? e.status : 500;
     console.error("client-data", e);

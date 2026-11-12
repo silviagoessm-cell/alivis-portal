@@ -24,7 +24,7 @@ export default async (req: Request, _context: Context) => {
 
   if (req.method === "GET") {
     const clients = await database.sql`
-      SELECT id, brand_name, notion_database_id, link_token, created_at FROM clients ORDER BY brand_name ASC
+      SELECT id, brand_name, notion_database_id, link_token, handle, bio, (avatar_key IS NOT NULL) AS has_avatar, (cover_key IS NOT NULL) AS has_cover, created_at FROM clients ORDER BY brand_name ASC
     `;
     return json({ clients }, { status: 200 });
   }
@@ -56,6 +56,11 @@ export default async (req: Request, _context: Context) => {
       let notionId: string | null = null;
       if (body.notionDatabaseId.trim()) ({ id: notionId, warning } = await prepareDatabase(body.notionDatabaseId));
       await database.sql`UPDATE clients SET notion_database_id = ${notionId} WHERE id = ${clientId}`;
+    }
+    if (typeof body?.handle === "string" || typeof body?.bio === "string") {
+      const handle = String(body.handle || "").trim().replace(/^@+/, "").slice(0, 60) || null;
+      const bio = String(body.bio || "").trim().slice(0, 400) || null;
+      await database.sql`UPDATE clients SET handle = ${handle}, bio = ${bio} WHERE id = ${clientId}`;
     }
     if (body?.regenerateLink) {
       // invalida o link antigo

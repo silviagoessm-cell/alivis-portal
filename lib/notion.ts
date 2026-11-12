@@ -96,26 +96,41 @@ export type PortalPost = {
   data_iso: string;
   hook: string;
   legenda: string;
+  roteiro: string[];
   slides: { img: string }[] | null;
   status: "pendente" | "aprovado" | "ajuste" | "revisao";
   feedback: string | null;
 };
 
-type BodyInfo = { lastEdited: string; legenda: string; imgs: { id: string; v: string }[] };
+type BodyInfo = { lastEdited: string; legenda: string; roteiro: string[]; imgs: { id: string; v: string }[] };
 
-function bodyFromBlocks(blocks: any[]): { legenda: string; imgs: { id: string; v: string }[] } {
+function bodyFromBlocks(blocks: any[]): { legenda: string; roteiro: string[]; imgs: { id: string; v: string }[] } {
   const imgs: { id: string; v: string }[] = [];
   const parts: { text: string; list: boolean }[] = [];
+  const roteiro: string[] = [];
   let inLegenda = false;
+  let inRoteiro = false;
   for (const b of blocks) {
     if (b.type === "image") {
       imgs.push({ id: b.id, v: b.last_edited_time || "" });
       inLegenda = false;
+      inRoteiro = false;
       continue;
     }
     if (/^heading_[123]$/.test(b.type)) {
       const t = plain(b[b.type].rich_text).toLowerCase();
       inLegenda = t.includes("legenda");
+      inRoteiro = !inLegenda && t.includes("roteiro");
+      continue;
+    }
+    if (inRoteiro) {
+      if (["paragraph", "bulleted_list_item", "numbered_list_item", "quote"].includes(b.type)) {
+        // cada linha vira uma frase; tira numeração digitada à mão ("1.", "2)")
+        for (const line of plain(b[b.type].rich_text).split("\n")) {
+          const t = line.replace(/^\s*(\d+[.)]|[-•])\s*/, "").trim();
+          if (t) roteiro.push(t);
+        }
+      }
       continue;
     }
     if (!inLegenda) continue;
@@ -130,7 +145,7 @@ function bodyFromBlocks(blocks: any[]): { legenda: string; imgs: { id: string; v
   parts.forEach((p, i) => {
     out += i === 0 ? p.text : (p.list && parts[i - 1].list ? "\n" : "\n\n") + p.text;
   });
-  return { legenda: out.trim(), imgs };
+  return { legenda: out.trim(), roteiro, imgs };
 }
 
 async function listAllChildren(blockId: string): Promise<any[]> {
@@ -161,7 +176,7 @@ async function pool<T, R>(items: T[], size: number, fn: (x: T) => Promise<R>): P
 
 async function bodyOf(page: any): Promise<BodyInfo> {
   const cache = getStore("notion-cache");
-  const key = `body-${page.id}`;
+  const key = `body2-${page.id}`;
   try {
     const hit = (await cache.get(key, { type: "json" })) as BodyInfo | null;
     if (hit && hit.lastEdited === page.last_edited_time) return hit;
@@ -211,6 +226,7 @@ export function mapPage(page: any, body: BodyInfo, token: string): PortalPost {
     data_iso: dataIso,
     hook,
     legenda: body.legenda || legendaProp,
+    roteiro: body.roteiro || [],
     slides: imgs.length ? imgs : null,
     status,
     feedback: comentario || null,

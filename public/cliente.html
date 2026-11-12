@@ -7,15 +7,58 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/brand.css">
 <style>
-  .progress{margin:14px 0 6px}
-  .progress .txt{font-size:13px;color:var(--text-dim);margin-bottom:6px}
-  .progress .txt b{color:var(--text)}
-  .progress .track{height:6px;border-radius:6px;background:var(--surface-3);overflow:hidden;display:flex}
-  .progress .seg-ok{background:var(--good)}
-  .progress .seg-aj{background:var(--warn)}
+  /* barra de cima e menu */
+  .appbar{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .icon-btn{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+  .icon-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+  .appname{font-size:13px;color:var(--text-dim)}
+  .drawer{position:fixed;inset:0;z-index:40;display:none}
+  .drawer.open{display:block}
+  .drawer .bd{position:absolute;inset:0;background:rgba(28,22,17,.5)}
+  .drawer .panel{position:absolute;top:0;bottom:0;left:0;width:min(300px,86vw);background:#fff;padding:18px 16px;overflow-y:auto;box-shadow:4px 0 24px rgba(0,0,0,.18)}
+  .drawer h2{font-size:17px;margin:0 0 14px}
+  .drawer .sec{font-size:11px;color:var(--text-faint);text-transform:uppercase;letter-spacing:.08em;margin:18px 0 6px}
+  .drawer button.item{display:flex;width:100%;align-items:center;gap:10px;text-align:left;border:none;background:none;padding:10px 10px;border-radius:10px;font-family:inherit;font-size:14.5px;color:var(--text);cursor:pointer}
+  .drawer button.item.on{background:var(--accent-wash);color:var(--accent);font-weight:600}
+  .drawer button.item svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;flex:0 0 auto}
+  .drawer .help{font-size:12.5px;color:var(--text-dim);line-height:1.5}
+  .drawer .help .lg{display:flex;align-items:center;gap:8px;margin-top:6px}
+  /* perfil estilo Instagram */
+  .profile{padding:6px 0 4px}
+  .p-top{display:flex;align-items:center;gap:18px}
+  .p-avatar{width:84px;height:84px;border-radius:50%;flex:0 0 auto;overflow:hidden;background:linear-gradient(145deg,var(--accent),var(--gold));display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--font-display);font-size:30px}
+  .p-avatar img{width:100%;height:100%;object-fit:cover}
+  .p-stats{display:flex;flex:1;justify-content:space-around;text-align:center;gap:6px}
+  .p-stats b{display:block;font-size:17px}
+  .p-stats span{font-size:11.5px;color:var(--text-dim)}
+  .p-name{margin:12px 0 0;font-size:16px;font-weight:700;font-family:var(--font-body)}
+  .p-handle{font-size:13px;color:var(--text-dim)}
+  .p-bio{margin:6px 0 0;font-size:14px;white-space:pre-line}
+  .p-cover{display:block;width:100%;max-height:240px;object-fit:cover;border-radius:14px;margin-top:12px;border:1px solid var(--line)}
+  .vtabs{display:flex;border-top:1px solid var(--line);margin-top:14px}
+  .vtabs button{flex:1;border:none;background:none;padding:12px 0;cursor:pointer;color:var(--text-faint);border-top:2px solid transparent;margin-top:-1px}
+  .vtabs button.on{color:var(--text);border-top-color:var(--text)}
+  .vtabs svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .month-tabs{display:flex;gap:6px;overflow-x:auto;margin:10px 0 4px;padding-bottom:4px}
+  .month-tabs button{flex:0 0 auto;border:1px solid var(--line);background:var(--surface-2);color:var(--text-dim);padding:7px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
+  .month-tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  /* grade */
   .tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
   .tile .status-dot{z-index:2}
   .tile .fmt{z-index:2;text-shadow:0 0 4px #fff}
+  .status-dot.revisao{background:var(--text-faint)}
+  .empty-note{color:var(--text-dim);font-size:14px;margin:24px 0}
+  /* janela do post */
+  .modal{position:fixed;inset:0;z-index:50;background:rgba(28,22,17,.62);overflow-y:auto;overscroll-behavior:contain;display:none}
+  .modal.open{display:block}
+  .modal-panel{background:#fff;width:100%;max-width:480px;min-height:100%;margin:0 auto}
+  @media (min-width:640px){.modal-panel{min-height:0;margin:24px auto;border-radius:16px;overflow:hidden}}
+  .modal-bar{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:6px;padding:8px 10px;background:#fff;border-bottom:1px solid var(--line)}
+  .modal-bar .ttl{flex:1;text-align:center;font-size:13px;font-weight:600;color:var(--text-dim)}
+  .modal-bar .icon-btn{width:38px;height:38px}
+  .modal-bar .icon-btn[disabled]{opacity:.3;cursor:default}
+  .modal-body .phone{border:none;border-radius:0;margin:0;box-shadow:none}
+  /* post */
   .slide.img{padding:0;background:#000}
   .slide.img img{width:100%;height:100%;object-fit:contain;background:#faf6ee}
   .slide[hidden]{display:none}
@@ -35,39 +78,99 @@
   .status-pill.ajuste{background:var(--warn-bg);color:var(--warn);border-color:#e8bfae}
   .more{border:none;background:none;color:var(--accent);font-weight:600;font-size:12.5px;cursor:pointer;padding:0;margin-left:4px}
   .caption.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .caption{white-space:pre-line}
   .fb-sent{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--warn-bg);color:var(--warn);font-size:13px}
   .undo{border:none;background:none;color:var(--text-dim);text-decoration:underline;font-size:12px;cursor:pointer;padding:0;margin-top:8px}
-  .month-tabs{display:flex;gap:6px;overflow-x:auto;margin:12px 0 4px;padding-bottom:4px}
-  .month-tabs button{flex:0 0 auto;border:1px solid var(--line);background:var(--surface-2);color:var(--text-dim);padding:7px 14px;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit}
-  .month-tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
-  .status-pill.revisao{background:var(--surface-2);color:var(--text-dim)}
-  .fb-btn:focus-visible,.car-nav:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .list-post{margin-bottom:16px}
+  .script{margin-top:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);padding:12px 14px}
+  .script h4{margin:0 0 8px;font-size:13px;font-weight:700}
+  .script ol{margin:0;padding-left:20px;font-size:14px;line-height:1.5}
+  .script li{margin-bottom:6px}
+  .script .btn{width:100%;margin-top:10px}
+  .rec{position:fixed;inset:0;z-index:70;background:#14100c;color:#fff;display:none;flex-direction:column}
+  .rec.open{display:flex}
+  .rec-top{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;font-size:13px;color:#cdbfae}
+  .rec-top button{border:1px solid #4a3f33;background:none;color:#fff;border-radius:10px;padding:8px 14px;font-family:inherit;font-size:14px;cursor:pointer}
+  .rec-dots{display:flex;gap:4px;padding:0 14px}
+  .rec-dots i{flex:1;height:4px;border-radius:4px;background:#3a3027}
+  .rec-dots i.done{background:var(--accent-soft)}
+  .rec-dots i.on{background:#fff}
+  .rec-text{flex:1;display:flex;align-items:center;justify-content:center;padding:24px 22px;text-align:center;font-size:clamp(26px,7.2vw,40px);line-height:1.3;font-weight:600;overflow-y:auto}
+  .rec-hint{text-align:center;font-size:12px;color:#9c8e7d;padding:0 14px 8px}
+  .rec-nav{display:flex;gap:10px;padding:10px 14px 22px}
+  .rec-nav button{flex:1;padding:18px 0;border-radius:14px;border:1px solid #4a3f33;background:#241d16;color:#fff;font-size:17px;font-weight:600;font-family:inherit;cursor:pointer}
+  .rec-nav button.main{background:var(--accent);border-color:var(--accent)}
+  .rec-nav button[disabled]{opacity:.35}
+  .fb-btn:focus-visible,.car-nav:focus-visible,.icon-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="topbar">
-    <div class="brand-row" style="margin-bottom:0">
-      <div class="avatar">AL</div>
-      <div>
-        <h1 id="brandTitle">Álivis</h1>
-        <div class="sub">Portal de aprovação de conteúdo</div>
+  <div class="appbar">
+    <button class="icon-btn" id="menuBtn" aria-label="Abrir menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+    <span class="appname">Calendário de conteúdo</span>
+  </div>
+
+  <section class="profile" id="profile">
+    <div class="p-top">
+      <div class="p-avatar" id="pAvatar"></div>
+      <div class="p-stats">
+        <div><b id="stPosts">0</b><span>posts</span></div>
+        <div><b id="stOk">0</b><span>aprovados</span></div>
+        <div><b id="stAj">0</b><span>em ajuste</span></div>
+        <div><b id="stPend">0</b><span>aguardando</span></div>
       </div>
     </div>
-  </div>
+    <h1 class="p-name" id="brandTitle">Álivis</h1>
+    <div class="p-handle" id="pHandle"></div>
+    <p class="p-bio" id="pBio"></p>
+    <img class="p-cover" id="pCover" alt="" hidden>
+  </section>
 
-  <p class="hint">Toque em <b>Aprovar</b> se estiver tudo certo, ou em <b>Pedir ajuste</b> pra descrever o que precisa mudar.</p>
-  <div class="legend">
-    <span><i class="status-dot" style="position:static"></i>Aguardando sua análise</span>
-    <span><i class="status-dot aprovado" style="position:static"></i>Aprovado</span>
-    <span><i class="status-dot ajuste" style="position:static"></i>Pediu ajuste</span>
-  </div>
+  <nav class="vtabs" aria-label="Modo de visualização">
+    <button id="tabGrid" class="on" aria-label="Ver em grade (feed)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></button>
+    <button id="tabList" aria-label="Ver em lista"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+  </nav>
+  <div class="month-tabs" id="monthTabs"></div>
+  <div id="content"></div>
+</div>
 
-  <div class="progress" id="progress" style="display:none">
-    <div class="txt" id="progressTxt"></div>
-    <div class="track"><div class="seg-ok" id="segOk"></div><div class="seg-aj" id="segAj"></div></div>
+<div class="drawer" id="drawer" aria-hidden="true">
+  <div class="bd" id="drawerBd"></div>
+  <div class="panel">
+    <h2>Menu</h2>
+    <div class="sec">Ver posts</div>
+    <button class="item" id="miGrid"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Feed (grade)</button>
+    <button class="item" id="miList"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>Lista de posts</button>
+    <div class="sec">Mês</div>
+    <div id="miMonths"></div>
+    <div class="sec">Como funciona</div>
+    <div class="help">Toque em um post para abrir. Use <b>Aprovar</b> se estiver tudo certo ou <b>Pedir ajuste</b> para descrever o que precisa mudar.
+      <div class="lg"><i class="status-dot" style="position:static"></i>Aguardando sua análise</div>
+      <div class="lg"><i class="status-dot aprovado" style="position:static"></i>Aprovado</div>
+      <div class="lg"><i class="status-dot ajuste" style="position:static"></i>Pediu ajuste</div>
+    </div>
   </div>
-  <div id="rounds"></div>
+</div>
+
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-label="Post">
+  <div class="modal-panel">
+    <div class="modal-bar">
+      <button class="icon-btn" id="mClose" aria-label="Fechar e voltar ao feed"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <span class="ttl" id="mTitle"></span>
+      <button class="icon-btn" id="mPrev" aria-label="Post anterior"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <button class="icon-btn" id="mNext" aria-label="Próximo post"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+    </div>
+    <div class="modal-body" id="mBody"></div>
+  </div>
+</div>
+
+<div class="rec" id="rec" role="dialog" aria-modal="true" aria-label="Modo gravação">
+  <div class="rec-top"><span id="recCount"></span><button id="recClose">Fechar</button></div>
+  <div class="rec-dots" id="recDots"></div>
+  <div class="rec-text" id="recText"></div>
+  <div class="rec-hint">Grave uma frase, toque em Próxima e continue.</div>
+  <div class="rec-nav"><button id="recPrev">‹ Anterior</button><button class="main" id="recNext">Próxima ›</button></div>
 </div>
 
 <template id="tplPost">
@@ -99,16 +202,19 @@
 </template>
 
 <script>
-  let STATE = null;
-  let CURRENT = null; // id do mês exibido
   const TOKEN = (location.pathname.match(/^\/c\/([0-9a-f]{48})/) || [])[1];
+  let STATE = null;
+  let VIEW = "grid";   // "grid" | "list"
+  let MONTH = null;    // id do mês ou "all"
+  let MODAL = null;    // id do post aberto na janela
+  const $ = id => document.getElementById(id);
 
+  /* ---------- dados ---------- */
   function showMessage(text) {
-    document.getElementById("rounds").innerHTML = "";
-    document.getElementById("progress").style.display = "none";
+    $("content").innerHTML = "";
     const p = document.createElement("p");
-    p.className = "hint"; p.style.marginTop = "24px"; p.textContent = text;
-    document.getElementById("rounds").appendChild(p);
+    p.className = "empty-note"; p.textContent = text;
+    $("content").appendChild(p);
   }
 
   async function loadData() {
@@ -118,85 +224,196 @@
     if (res.status === 404) { showMessage("Este link não está mais ativo. Peça um novo link para a sua agência."); return; }
     if (!res.ok) { showMessage("Não consegui carregar agora. Atualize a página em instantes."); return; }
     STATE = await res.json();
-    document.getElementById("brandTitle").textContent = STATE.brandName || "Álivis";
-    if (!STATE.rounds.length) { showMessage("Ainda não há posts para aprovar. Avisaremos quando houver."); return; }
-    if (!STATE.rounds.some(r => r.id === CURRENT)) CURRENT = pickMonth();
+    if (MONTH !== "all" && !STATE.rounds.some(r => r.id === MONTH)) MONTH = pickMonth();
     render();
-    updateProgress();
+    if (MODAL) {
+      if (findEntry(MODAL)) showModal(true); else closeModal(false);
+    }
   }
 
   function pickMonth() {
+    if (!STATE.rounds.length) return "all";
     const now = new Date();
     const cur = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
     const pend = STATE.rounds.find(r => r.posts.some(p => p.status === "pendente"));
     return (STATE.rounds.find(r => r.id === cur) || pend || STATE.rounds[0]).id;
   }
 
+  function scopeRounds() {
+    return MONTH === "all" ? STATE.rounds : STATE.rounds.filter(r => r.id === MONTH);
+  }
+  // posts na ordem exibida, com a numeração dentro do mês
+  function entries() {
+    const out = [];
+    scopeRounds().forEach(r => r.posts.forEach((p, i) => out.push({ p, num: i + 1, total: r.posts.length })));
+    return out;
+  }
+  function findEntry(id) { return entries().findIndex(e => e.p.id === id); }
+  function imagesOf(p) { return Array.isArray(p.slides) ? p.slides.filter(x => x && x.img).map(x => x.img) : []; }
   function statusLabel(s) {
     return s === "aprovado" ? "Aprovado" : s === "ajuste" ? "Ajuste pedido" : s === "revisao" ? "Em revisão pela equipe" : "Pendente";
   }
 
+  /* ---------- tela ---------- */
   function render() {
-    const container = document.getElementById("rounds");
-    container.innerHTML = "";
-    if (STATE.rounds.length > 1) {
-      const tabs = document.createElement("div");
-      tabs.className = "month-tabs";
-      STATE.rounds.forEach(r => {
-        const b = document.createElement("button");
-        b.type = "button"; b.textContent = r.label;
-        b.className = r.id === CURRENT ? "on" : "";
-        b.addEventListener("click", () => { CURRENT = r.id; render(); updateProgress(); window.scrollTo({ top: 0 }); });
-        tabs.appendChild(b);
-      });
-      container.appendChild(tabs);
-    }
-    const round = STATE.rounds.find(r => r.id === CURRENT) || STATE.rounds[0];
-    const block = document.createElement("div");
-    block.className = "round-block";
-    const title = document.createElement("p");
-    title.className = "round-title";
-    title.textContent = round.label;
-    block.appendChild(title);
+    renderProfile();
+    renderNav();
+    renderContent();
+  }
 
-    const grid = document.createElement("div");
-    grid.className = "grid";
-    round.posts.forEach(p => {
-      const tile = document.createElement("button");
-      tile.className = "tile";
-      const cover = imagesOf(p)[0];
-      tile.innerHTML = `${cover ? `<img alt="" loading="lazy">` : ""}<span class="status-dot ${p.status}"></span><span class="fmt">${p.icon}</span>${cover ? "" : `<span class="hook"></span>`}`;
-      if (cover) tile.querySelector("img").src = cover; else tile.querySelector(".hook").textContent = p.hook;
-      tile.setAttribute("aria-label", "Abrir post: " + p.hook.slice(0, 60));
-      tile.addEventListener("click", () => {
-        document.getElementById("post-" + p.id)?.scrollIntoView({ behavior: "smooth" });
-      });
-      grid.appendChild(tile);
+  function renderProfile() {
+    const prof = STATE.profile || {};
+    const name = STATE.brandName || "Álivis";
+    $("brandTitle").textContent = name;
+    $("pHandle").textContent = prof.handle ? "@" + prof.handle : "";
+    $("pBio").textContent = prof.bio || "";
+    const av = $("pAvatar");
+    av.innerHTML = "";
+    if (prof.avatar) { const im = document.createElement("img"); im.alt = ""; im.src = prof.avatar; av.appendChild(im); }
+    else av.textContent = name.trim().slice(0, 2).toUpperCase();
+    const cover = $("pCover");
+    if (prof.cover) { cover.src = prof.cover; cover.hidden = false; } else cover.hidden = true;
+    const all = STATE.rounds.flatMap(r => r.posts);
+    $("stPosts").textContent = all.length;
+    $("stOk").textContent = all.filter(p => p.status === "aprovado").length;
+    $("stAj").textContent = all.filter(p => p.status === "ajuste" || p.status === "revisao").length;
+    $("stPend").textContent = all.filter(p => p.status === "pendente").length;
+  }
+
+  function renderNav() {
+    $("tabGrid").classList.toggle("on", VIEW === "grid");
+    $("tabList").classList.toggle("on", VIEW === "list");
+    $("miGrid").classList.toggle("on", VIEW === "grid");
+    $("miList").classList.toggle("on", VIEW === "list");
+    const chips = $("monthTabs"), menu = $("miMonths");
+    chips.innerHTML = ""; menu.innerHTML = "";
+    const opts = STATE.rounds.length > 1 ? [...STATE.rounds.map(r => ({ id: r.id, label: r.label })), { id: "all", label: "Todos" }] : [];
+    chips.style.display = opts.length ? "flex" : "none";
+    opts.forEach(o => {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = o.label; b.className = o.id === MONTH ? "on" : "";
+      b.addEventListener("click", () => { MONTH = o.id; render(); });
+      chips.appendChild(b);
+      const m = document.createElement("button");
+      m.type = "button"; m.className = "item" + (o.id === MONTH ? " on" : ""); m.textContent = o.label;
+      m.addEventListener("click", () => { MONTH = o.id; closeDrawer(); render(); });
+      menu.appendChild(m);
     });
-    block.appendChild(grid);
-
-    round.posts.forEach((p, i) => block.appendChild(renderPost(p, i + 1, round.posts.length)));
-    container.appendChild(block);
+    if (!opts.length) {
+      const t = document.createElement("div"); t.className = "help"; t.textContent = STATE.rounds[0] ? STATE.rounds[0].label : "—";
+      menu.appendChild(t);
+    }
   }
 
-  function imagesOf(p) {
-    return Array.isArray(p.slides) ? p.slides.filter(x => x && x.img).map(x => x.img) : [];
+  function renderContent() {
+    const box = $("content");
+    box.innerHTML = "";
+    const rounds = scopeRounds();
+    if (!rounds.length || !rounds.some(r => r.posts.length)) {
+      showMessage("Ainda não há posts para aprovar. Avisaremos quando houver.");
+      return;
+    }
+    rounds.forEach(round => {
+      const block = document.createElement("div");
+      block.className = "round-block";
+      if (rounds.length > 1) {
+        const t = document.createElement("p"); t.className = "round-title"; t.textContent = round.label; block.appendChild(t);
+      }
+      if (VIEW === "grid") {
+        const grid = document.createElement("div");
+        grid.className = "grid";
+        round.posts.forEach(p => grid.appendChild(tile(p)));
+        block.appendChild(grid);
+      } else {
+        round.posts.forEach((p, i) => {
+          const wrap = document.createElement("div");
+          wrap.className = "list-post";
+          wrap.appendChild(renderPost(p, i + 1, round.posts.length));
+          block.appendChild(wrap);
+        });
+      }
+      box.appendChild(block);
+    });
   }
 
-  function updateProgress() {
-    const cur = STATE && STATE.rounds.find(r => r.id === CURRENT);
-    const box = document.getElementById("progress");
-    if (!cur || !cur.posts.length) { box.style.display = "none"; return; }
-    const total = cur.posts.length;
-    const ok = cur.posts.filter(p => p.status === "aprovado").length;
-    const aj = cur.posts.filter(p => p.status === "ajuste" || p.status === "revisao").length;
-    const pend = total - ok - aj;
-    box.style.display = "block";
-    document.getElementById("progressTxt").innerHTML = `<b>${ok} de ${total}</b> aprovados` + (aj ? ` · ${aj} com ajuste pedido` : "") + (pend ? ` · ${pend} aguardando você` : " · tudo respondido ✅");
-    document.getElementById("segOk").style.width = (ok / total * 100) + "%";
-    document.getElementById("segAj").style.width = (aj / total * 100) + "%";
+  function tile(p) {
+    const el = document.createElement("button");
+    el.className = "tile";
+    const cover = imagesOf(p)[0];
+    const dot = document.createElement("span"); dot.className = "status-dot " + p.status;
+    const fmt = document.createElement("span"); fmt.className = "fmt"; fmt.textContent = p.icon;
+    if (cover) { const im = document.createElement("img"); im.alt = ""; im.loading = "lazy"; im.src = cover; el.appendChild(im); }
+    el.append(dot, fmt);
+    if (!cover) { const h = document.createElement("span"); h.className = "hook"; h.textContent = p.hook; el.appendChild(h); }
+    el.setAttribute("aria-label", "Abrir post: " + p.hook.slice(0, 60));
+    el.addEventListener("click", () => openPost(p.id));
+    return el;
   }
 
+  /* ---------- menu ---------- */
+  function openDrawer() { $("drawer").classList.add("open"); $("drawer").setAttribute("aria-hidden", "false"); }
+  function closeDrawer() { $("drawer").classList.remove("open"); $("drawer").setAttribute("aria-hidden", "true"); }
+  function setView(v) { VIEW = v; closeDrawer(); if (STATE) render(); }
+  $("menuBtn").addEventListener("click", openDrawer);
+  $("drawerBd").addEventListener("click", closeDrawer);
+  $("tabGrid").addEventListener("click", () => setView("grid"));
+  $("tabList").addEventListener("click", () => setView("list"));
+  $("miGrid").addEventListener("click", () => setView("grid"));
+  $("miList").addEventListener("click", () => setView("list"));
+
+  /* ---------- janela do post ---------- */
+  function openPost(id) {
+    const wasOpen = !!MODAL;
+    MODAL = id;
+    if (!wasOpen) history.pushState({ m: 1 }, "");
+    showModal(false);
+  }
+
+  function showModal(keepScroll) {
+    const list = entries();
+    const i = list.findIndex(e => e.p.id === MODAL);
+    if (i < 0) return;
+    const modal = $("modal");
+    const top = keepScroll ? modal.scrollTop : 0;
+    const e = list[i];
+    $("mBody").innerHTML = "";
+    $("mBody").appendChild(renderPost(e.p, e.num, e.total));
+    $("mTitle").textContent = `${i + 1} de ${list.length}`;
+    $("mPrev").disabled = i === 0;
+    $("mNext").disabled = i === list.length - 1;
+    modal.classList.add("open");
+    document.body.style.overflow = "hidden";
+    modal.scrollTop = top;
+  }
+
+  function stepModal(d) {
+    const list = entries();
+    const i = list.findIndex(e => e.p.id === MODAL) + d;
+    if (i >= 0 && i < list.length) { MODAL = list[i].p.id; showModal(false); }
+  }
+
+  function closeModal(fromPop) {
+    if (!MODAL && !$("modal").classList.contains("open")) return;
+    MODAL = null;
+    $("modal").classList.remove("open");
+    document.body.style.overflow = "";
+    if (!fromPop && history.state && history.state.m) history.back();
+  }
+
+  $("mClose").addEventListener("click", () => closeModal(false));
+  $("mPrev").addEventListener("click", () => stepModal(-1));
+  $("mNext").addEventListener("click", () => stepModal(1));
+  $("modal").addEventListener("click", ev => { if (ev.target === $("modal")) closeModal(false); });
+  window.addEventListener("popstate", () => closeModal(true));
+  document.addEventListener("keydown", ev => {
+    if (ev.key === "Escape" && !REC) { if ($("drawer").classList.contains("open")) closeDrawer(); else closeModal(false); }
+    if (MODAL && document.activeElement.tagName !== "TEXTAREA") {
+      if (ev.key === "ArrowLeft") stepModal(-1);
+      if (ev.key === "ArrowRight") stepModal(1);
+    }
+  });
+
+  /* ---------- post ---------- */
   function buildMedia(root, p) {
     const stage = root.querySelector(".stage");
     const imgs = imagesOf(p);
@@ -250,12 +467,15 @@
   }
 
   function renderPost(p, num, total) {
-    const interactive = true;
-    const tpl = document.getElementById("tplPost").content.cloneNode(true);
+    const tpl = $("tplPost").content.cloneNode(true);
     const root = tpl.querySelector("[data-post]");
     root.id = "post-" + p.id;
-    root.querySelector(".avatar").textContent = "AL";
-    root.querySelector(".handle").textContent = "Álivis";
+    const name = (STATE.brandName || "Álivis");
+    const prof = STATE.profile || {};
+    const av = root.querySelector(".avatar");
+    if (prof.avatar) { const im = document.createElement("img"); im.alt = ""; im.src = prof.avatar; im.style.cssText = "width:100%;height:100%;border-radius:50%;object-fit:cover"; av.textContent = ""; av.appendChild(im); }
+    else av.textContent = name.trim().slice(0, 2).toUpperCase();
+    root.querySelector(".handle").textContent = prof.handle ? prof.handle : name;
     root.querySelector(".post-label").textContent = `Post ${num} de ${total} · ${p.label}`;
     root.querySelector(".when").textContent = (p.data_programada ? "Programado para " + p.data_programada : "Sem data definida");
     const pill = document.createElement("span");
@@ -267,7 +487,9 @@
     stage.classList.add("fmt-" + p.formato);
     root.querySelector(".txt").textContent = p.hook;
     const tags = root.querySelector(".tags");
-    tags.innerHTML = `<span class="tag">${p.icon} ${p.label}</span>` + (p.rede || []).map(r => `<span class="tag">${r}</span>`).join("");
+    [p.icon + " " + p.label, ...(p.rede || [])].forEach(t => {
+      const s = document.createElement("span"); s.className = "tag"; s.textContent = t; tags.appendChild(s);
+    });
     buildMedia(root, p);
     const cap = root.querySelector(".caption");
     const legenda = p.legenda || p.hook;
@@ -283,21 +505,25 @@
       cap.after(more);
     }
 
+    if (p.roteiro && p.roteiro.length) {
+      const box = document.createElement("div");
+      box.className = "script";
+      const h = document.createElement("h4"); h.textContent = `🎬 Roteiro (${p.roteiro.length} frases)`; box.appendChild(h);
+      const ol = document.createElement("ol");
+      p.roteiro.forEach(t => { const li = document.createElement("li"); li.textContent = t; ol.appendChild(li); });
+      box.appendChild(ol);
+      const rb = document.createElement("button");
+      rb.type = "button"; rb.className = "btn"; rb.textContent = "🎙️ Modo gravação";
+      rb.addEventListener("click", () => openRec(p.roteiro));
+      box.appendChild(rb);
+      root.querySelector(".caption").before(box);
+    }
+
     const okBtn = root.querySelector('[data-action="aprovado"]');
     const adjustBtn = root.querySelector('[data-action="ajuste"]');
     const textarea = root.querySelector(".fb-textarea");
     const sendBtn = root.querySelector('[data-action="send-ajuste"]');
     const note = root.querySelector(".fb-note");
-
-    if (!interactive) {
-      okBtn.style.display = "none";
-      adjustBtn.style.display = "none";
-      if (p.feedback) {
-        note.style.display = "block";
-        note.textContent = "Ajuste pedido: " + p.feedback;
-      }
-      return root;
-    }
 
     if (p.status === "revisao") {
       okBtn.style.display = "none"; adjustBtn.style.display = "none";
@@ -323,29 +549,56 @@
     }
 
     okBtn.addEventListener("click", async () => {
+      okBtn.disabled = true;
       await sendFeedback(p.id, "aprovado", null);
-      note.style.display = "block";
-      note.textContent = "Aprovado ✅";
       await loadData();
     });
-
     adjustBtn.addEventListener("click", () => {
       textarea.style.display = "block";
       sendBtn.style.display = "block";
       textarea.focus();
     });
-
     sendBtn.addEventListener("click", async () => {
       const text = textarea.value.trim();
       if (!text) { textarea.focus(); return; }
+      sendBtn.disabled = true;
       await sendFeedback(p.id, "ajuste", text);
-      note.style.display = "block";
-      note.textContent = "Ajuste enviado.";
       await loadData();
     });
-
     return root;
   }
+
+  /* ---------- modo gravação: uma frase por vez ---------- */
+  let REC = null, RECI = 0, WAKE = null;
+  function drawRec() {
+    $("recText").textContent = REC[RECI];
+    $("recCount").textContent = `Frase ${RECI + 1} de ${REC.length}`;
+    $("recDots").innerHTML = REC.map((_, i) => `<i class="${i < RECI ? "done" : i === RECI ? "on" : ""}"></i>`).join("");
+    $("recPrev").disabled = RECI === 0;
+    $("recNext").textContent = RECI === REC.length - 1 ? "Terminei ✓" : "Próxima ›";
+  }
+  async function openRec(lines) {
+    REC = lines; RECI = 0; drawRec();
+    $("rec").classList.add("open");
+    document.body.style.overflow = "hidden";
+    try { WAKE = await navigator.wakeLock.request("screen"); } catch {}
+  }
+  function closeRec() {
+    $("rec").classList.remove("open");
+    REC = null;
+    document.body.style.overflow = MODAL ? "hidden" : "";
+    try { if (WAKE) WAKE.release(); } catch {}
+    WAKE = null;
+  }
+  $("recClose").addEventListener("click", closeRec);
+  $("recPrev").addEventListener("click", () => { if (RECI > 0) { RECI--; drawRec(); } });
+  $("recNext").addEventListener("click", () => { if (RECI < REC.length - 1) { RECI++; drawRec(); } else closeRec(); });
+  document.addEventListener("keydown", ev => {
+    if (!REC) return;
+    if (ev.key === "ArrowRight" || ev.key === " ") { ev.preventDefault(); $("recNext").click(); }
+    if (ev.key === "ArrowLeft") $("recPrev").click();
+    if (ev.key === "Escape") closeRec();
+  });
 
   async function sendFeedback(postId, status, feedback) {
     const res = await fetch(`/api/c/${TOKEN}/feedback`, {

@@ -16,6 +16,13 @@
   .msg.ok{color:var(--good)}
   .msg.bad{color:var(--warn)}
   .empty{color:var(--text-dim);font-size:14px}
+  .profile-box{border-top:1px solid var(--line);margin-top:14px;padding-top:14px}
+  .profile-box h4{margin:0 0 10px;font-size:13px;color:var(--text-dim);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+  .pimgs{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+  .pimg{display:flex;align-items:center;gap:10px}
+  .pimg .th{width:56px;height:56px;border-radius:50%;background:var(--surface-3);overflow:hidden;flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:11px}
+  .pimg.cover .th{border-radius:8px;width:84px}
+  .pimg .th img{width:100%;height:100%;object-fit:cover}
 </style>
 </head>
 <body>
@@ -54,6 +61,22 @@
     if (data.role !== "admin") location.href = "/";
   }
 
+  function resizeToJpeg(file, maxSide) {
+    return new Promise((resolve, reject) => {
+      const img = new Image(), url = URL.createObjectURL(file);
+      img.onload = () => {
+        const k = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const w = Math.round(img.width * k), h = Math.round(img.height * k);
+        const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+        const ctx = cv.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        cv.toBlob(b => b ? resolve(b) : reject(new Error("Falha ao preparar a imagem.")), "image/jpeg", 0.88);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Não consegui ler essa imagem.")); };
+      img.src = url;
+    });
+  }
+
   async function api(method, body) {
     const res = await fetch("/api/admin/clients", { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     const data = await res.json().catch(() => ({}));
@@ -83,6 +106,18 @@
       </div>
       <div class="field"><label>Calendário no Notion (link)</label>
         <input class="nid" value="${esc(c.notion_database_id || "")}" placeholder="cole o link do calendário do cliente"></div>
+      <div class="profile-box">
+        <h4>Perfil que o cliente vê</h4>
+        <div class="pimgs">
+          <div class="pimg"><div class="th" data-th="avatar">${c.has_avatar ? `<img src="/api/c/${esc(c.link_token)}/perfil/avatar?t=${Date.now()}" alt="">` : "sem foto"}</div>
+            <div><button class="btn secondary" data-a="pick-avatar">Foto de perfil</button><input type="file" accept="image/*" data-file="avatar" hidden></div></div>
+          <div class="pimg cover"><div class="th" data-th="cover">${c.has_cover ? `<img src="/api/c/${esc(c.link_token)}/perfil/cover?t=${Date.now()}" alt="">` : "sem capa"}</div>
+            <div><button class="btn secondary" data-a="pick-cover">Imagem de capa (print)</button><input type="file" accept="image/*" data-file="cover" hidden></div></div>
+        </div>
+        <div class="field"><label>@ do Instagram (sem o @)</label><input class="p-handle" value="${esc(c.handle || "")}" placeholder="ex.: esmarilda.corretora"></div>
+        <div class="field"><label>Bio (até 400 caracteres)</label><textarea class="p-bio" maxlength="400" placeholder="Texto curto como na bio do Instagram">${esc(c.bio || "")}</textarea></div>
+        <button class="btn secondary" data-a="save-profile">Salvar perfil</button>
+      </div>
       <div class="row-actions">
         <button class="btn secondary" data-a="save">Salvar calendário</button>
         <button class="btn secondary" data-a="test">Testar conexão</button>
@@ -92,10 +127,29 @@
       <p class="msg"></p>`;
     const msg = el.querySelector(".msg");
     const nid = el.querySelector(".nid");
+    el.querySelectorAll("[data-file]").forEach(inp => inp.addEventListener("change", async () => {
+      const file = inp.files[0]; inp.value = "";
+      if (!file) return;
+      const kind = inp.dataset.file;
+      setMsg(msg, "Enviando imagem…");
+      try {
+        const blob = await resizeToJpeg(file, kind === "avatar" ? 600 : 1350);
+        const res = await fetch(`/api/admin/upload?clientId=${c.id}&kind=${kind}`, { method: "POST", headers: { "content-type": "image/jpeg" }, body: blob });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) return setMsg(msg, d.error || "Falha no envio.", "bad");
+        el.querySelector(`[data-th="${kind}"]`).innerHTML = `<img src="/api/c/${c.link_token}/perfil/${kind}?t=${Date.now()}" alt="">`;
+        setMsg(msg, kind === "avatar" ? "Foto atualizada ✓" : "Capa atualizada ✓", "ok");
+      } catch (e) { setMsg(msg, e.message || "Não consegui ler a imagem.", "bad"); }
+    }));
     el.addEventListener("click", async ev => {
       const a = ev.target.dataset && ev.target.dataset.a;
       if (!a || a === "open") return;
       const btn = ev.target;
+      if (a === "pick-avatar" || a === "pick-cover") { el.querySelector(`[data-file="${a.slice(5)}"]`).click(); }
+      if (a === "save-profile") {
+        const r = await api("PATCH", { clientId: c.id, handle: el.querySelector(".p-handle").value, bio: el.querySelector(".p-bio").value });
+        setMsg(msg, r.ok ? "Perfil salvo ✓" : (r.data.error || "Não foi possível salvar."), r.ok ? "ok" : "bad");
+      }
       if (a === "copy") {
         try { await navigator.clipboard.writeText(linkOf(c)); setMsg(msg, "Link copiado ✓", "ok"); }
         catch { el.querySelector(".linkbox input").select(); setMsg(msg, "Selecionei o link: use Ctrl+C.", ""); }
