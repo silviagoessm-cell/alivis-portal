@@ -62,6 +62,7 @@ export async function resolveDatabaseId(id: string): Promise<string> {
 const NEED_PROPS: Record<string, any> = {
   "Aprovação do cliente": { select: { options: [{ name: "Pendente", color: "yellow" }, { name: "Aprovado", color: "green" }] } },
   "Comentário do cliente": { rich_text: {} },
+  "Gravar": { checkbox: {} },
 };
 
 /** Cria no banco as colunas que o portal escreve, se ainda não existirem. */
@@ -94,6 +95,7 @@ export type PortalPost = {
   formato: string;
   label: string;
   icon: string;
+  gravar: boolean;
   rede: string[];
   data_programada: string;
   data_iso: string;
@@ -224,6 +226,7 @@ export function mapPage(page: any, body: BodyInfo, token: string): PortalPost {
     formato: fmt.formato,
     label: fmt.label,
     icon: fmt.icon,
+    gravar: props["Gravar"]?.checkbox === true,
     rede,
     data_programada: fmtData(dataIso),
     data_iso: dataIso,
