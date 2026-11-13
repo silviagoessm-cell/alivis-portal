@@ -47,7 +47,9 @@
   /* grade */
   .tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
   .tile .status-dot{z-index:2}
-  .tile .fmt{z-index:2;text-shadow:0 0 4px #fff}
+  .tile .fmt{z-index:2;top:6px;right:6px;font-size:10.5px;font-weight:700;line-height:1;letter-spacing:.01em;white-space:nowrap;padding:4px 8px;border-radius:20px;background:rgba(28,22,17,.82);color:#fff;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+  .tile .fmt.reels{background:var(--accent)}
+  .tile .fmt.stories{background:#7a5a2b}
   .status-dot.revisao{background:var(--text-faint)}
   .empty-note{color:var(--text-dim);font-size:14px;margin:24px 0}
   /* janela do post */
@@ -353,7 +355,8 @@
     el.className = "tile";
     const cover = imagesOf(p)[0];
     const dot = document.createElement("span"); dot.className = "status-dot " + p.status;
-    const fmt = document.createElement("span"); fmt.className = "fmt"; fmt.textContent = p.icon;
+    const TAGS = { reels: "🎬 Reels", carrossel: "🗂️ Carrossel", static: "🖼️ Estático", stories: "📸 Stories" };
+    const fmt = document.createElement("span"); fmt.className = "fmt " + p.formato; fmt.textContent = TAGS[p.formato] || p.label;
     if (cover) { const im = document.createElement("img"); im.alt = ""; im.loading = "lazy"; im.src = cover; el.appendChild(im); }
     el.append(dot, fmt);
     if (!cover) { const h = document.createElement("span"); h.className = "hook"; h.textContent = p.hook; el.appendChild(h); }
