@@ -82,6 +82,9 @@ const FORMATOS: Record<string, { formato: string; label: string; icon: string }>
   "Carrossel": { formato: "carrossel", label: "Carrossel", icon: "🖼️" },
   "Reels": { formato: "reels", label: "Reels", icon: "🎞️" },
   "Stories": { formato: "stories", label: "Stories", icon: "📸" },
+  "Pov": { formato: "reels", label: "Reels · POV", icon: "🎞️" },
+  "Tela verde": { formato: "reels", label: "Reels · tela verde", icon: "🎞️" },
+  "Cabeça falante": { formato: "reels", label: "Reels · cabeça falante", icon: "🎞️" },
 };
 
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
